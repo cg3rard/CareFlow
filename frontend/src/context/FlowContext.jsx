@@ -206,6 +206,11 @@ export function FlowProvider({ children }) {
     } : task));
   };
 
+  // Kembalikan semua misi ke status belum selesai (dipakai saat memulai putaran misi 5 menit yang baru)
+  const resetMicroTasks = () => {
+    setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
+  };
+
   const addCustomMicroAction = (action) => {
     const cleanAction = action.trim();
     if (!cleanAction) return false;
@@ -267,7 +272,7 @@ export function FlowProvider({ children }) {
     authenticate, continueAsGuest, startLogin, logout,
     triageData, setTriageData, processTriage, isProcessingSlice,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
-    microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, addCustomMicroAction, affirmation, totalXp,
+    microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, saveCurrentSession, clearAllVault,
     resetFlow,
   }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice]);

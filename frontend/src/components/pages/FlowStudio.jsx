@@ -8,6 +8,7 @@ export default function FlowStudio() {
     activeMissionIndex,
     toggleTaskDone,
     sliceTaskSmaller,
+    resetMicroTasks,
     totalXp,
     activeSound,
     toggleSoundscape,
@@ -108,18 +109,53 @@ export default function FlowStudio() {
   // 2. 5-Minute Quest Countdown Timer with SVG progress
   // ========================================================
   const TOTAL_QUEST_TIME = 300;
-  const [questTime, setQuestTime] = useState(258); // 4:18
-  const [isTimerRunning, setIsTimerRunning] = useState(true);
+  const [questTime, setQuestTime] = useState(TOTAL_QUEST_TIME); // 5:00
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [hasQuestStarted, setHasQuestStarted] = useState(false); // Misi baru bisa dijalankan setelah timer dimulai
 
   useEffect(() => {
     let timer = null;
     if (isTimerRunning && questTime > 0) {
       timer = setInterval(() => {
-        setQuestTime((t) => (t > 0 ? t - 1 : 0));
+        setQuestTime((t) => {
+          if (t <= 1) {
+            setIsTimerRunning(false);
+            return 0;
+          }
+          return t - 1;
+        });
       }, 1000);
     }
     return () => clearInterval(timer);
   }, [isTimerRunning, questTime]);
+
+  // Mulai quest: jalankan timer dan buka akses misi
+  const startQuest = () => {
+    setHasQuestStarted(true);
+    setIsTimerRunning(true);
+  };
+
+  // Toggle jeda/lanjut. Bila belum pernah dimulai, tombol berfungsi sebagai "Mulai".
+  const toggleQuestTimer = () => {
+    if (!hasQuestStarted) {
+      startQuest();
+      return;
+    }
+    setIsTimerRunning((prev) => !prev);
+  };
+
+  // Reset timer 5 menit ke kondisi awal (belum berjalan, misi terkunci lagi)
+  const resetQuestTimer = () => {
+    setQuestTime(TOTAL_QUEST_TIME);
+    setIsTimerRunning(false);
+    setHasQuestStarted(false);
+  };
+
+  // Mulai putaran misi yang benar-benar baru: uncheck semua misi & reset timer ke 5:00
+  const startNewMissionRound = () => {
+    resetMicroTasks();
+    resetQuestTimer();
+  };
 
   const formatTimer = (secs) => {
     const m = Math.floor(secs / 60);
@@ -128,6 +164,20 @@ export default function FlowStudio() {
   };
 
   const timerProgressPercentage = Math.round((questTime / TOTAL_QUEST_TIME) * 100);
+
+  // Semua misi tuntas? (activeMissionIndex jadi -1 saat tidak ada task tersisa)
+  const isAllMissionsCleared = hasQuestStarted && microTasks.length > 0 && activeMissionIndex === -1;
+  // Waktu habis sebelum semua misi tuntas = gagal
+  const isQuestFailed = hasQuestStarted && questTime <= 0 && !isAllMissionsCleared;
+  // Timer & aksi misi terkunci saat: belum mulai, sedang pause, atau quest sudah berakhir (gagal/sukses)
+  const isQuestLocked = !hasQuestStarted || !isTimerRunning || isQuestFailed || isAllMissionsCleared;
+
+  // Hentikan timer secara permanen begitu semua misi selesai (tidak boleh dijeda/dilanjutkan lagi)
+  useEffect(() => {
+    if (isAllMissionsCleared && isTimerRunning) {
+      setIsTimerRunning(false);
+    }
+  }, [isAllMissionsCleared, isTimerRunning]);
 
   // ========================================================
   // 3. Crush the Worry (Bakar Pikiran Negatif)
@@ -161,6 +211,16 @@ export default function FlowStudio() {
 
   // Wrapper for task toggle with floating XP banner
   const handleTaskCheck = (task) => {
+    if (!hasQuestStarted) {
+      setFloatingXpText('Tekan "Mulai Misi" dulu untuk memulai ⏱️');
+      setTimeout(() => setFloatingXpText(''), 1800);
+      return;
+    }
+    if (!isTimerRunning || isQuestFailed || isAllMissionsCleared) {
+      setFloatingXpText('Lanjutkan timer dulu untuk menyelesaikan misi ⏸️');
+      setTimeout(() => setFloatingXpText(''), 1800);
+      return;
+    }
     toggleTaskDone(task.id);
     if (!task.completed && microTasks[activeMissionIndex]?.id === task.id) {
       setFloatingXpText(`+${task.xp || 15} XP Ketenangan!`);
@@ -532,62 +592,124 @@ export default function FlowStudio() {
             </div>
 
             {/* Chunky 5-Minute Timer Module with Animated Circular Progress */}
-            <div className="bg-surface-container-low rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_2px_0_#121214]">
-              <div className="flex items-center gap-4">
-                {/* Circular SVG Progress */}
-                <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                  <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      className="text-surface-variant"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3.5"
-                    ></path>
-                    <path
-                      className="text-secondary transition-all duration-1000 ease-linear"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeDasharray={`${timerProgressPercentage}, 100`}
-                      strokeLinecap="round"
-                      strokeWidth="3.5"
-                    ></path>
-                  </svg>
-                  <span className="material-symbols-outlined text-secondary text-[24px] absolute">
-                    hourglass_top
-                  </span>
+            <div className="bg-surface-container-low rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-[0_2px_0_#121214]">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {/* Circular SVG Progress */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-surface-variant"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3.5"
+                      ></path>
+                      <path
+                        className="text-secondary transition-all duration-1000 ease-linear"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeDasharray={`${timerProgressPercentage}, 100`}
+                        strokeLinecap="round"
+                        strokeWidth="3.5"
+                      ></path>
+                    </svg>
+                    <span className="material-symbols-outlined text-secondary text-[24px] absolute">
+                      hourglass_top
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-on-surface-variant uppercase tracking-wider font-bold">
+                      {hasQuestStarted ? 'Timer Putaran Sekarang' : 'Tekan Mulai untuk Aktifkan Misi'}
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-bold text-on-surface font-mono">
+                      {formatTimer(questTime)}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-on-surface-variant uppercase tracking-wider font-bold">
-                    Timer Putaran Sekarang
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-bold text-on-surface font-mono">
-                    {formatTimer(questTime)}
-                  </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={toggleQuestTimer}
+                    disabled={isQuestFailed || isAllMissionsCleared}
+                    className={`flex-1 sm:flex-none px-5 py-2.5 rounded-full text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                      !hasQuestStarted ? 'bg-primary text-on-primary' : 'bg-inverse-surface text-inverse-on-surface'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {isAllMissionsCleared ? 'check_circle' : isQuestFailed ? 'flag' : isTimerRunning ? 'pause' : 'play_arrow'}
+                    </span>
+                    <span>
+                      {isAllMissionsCleared
+                        ? 'Misi Selesai'
+                        : isQuestFailed
+                          ? 'Waktu Habis'
+                          : !hasQuestStarted
+                            ? 'Mulai Misi'
+                            : isTimerRunning
+                              ? 'Jeda Sesaat'
+                              : 'Lanjutkan'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetQuestTimer}
+                    disabled={isQuestFailed || isAllMissionsCleared}
+                    className="p-2.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-variant shadow-[0_2px_0_#121214] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Reset 5 Menit"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">refresh</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsTimerRunning(!isTimerRunning)}
-                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {isTimerRunning ? 'pause' : 'play_arrow'}
-                  </span>
-                  <span>{isTimerRunning ? 'Jeda Sesaat' : 'Lanjutkan'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQuestTime(TOTAL_QUEST_TIME)}
-                  className="p-2.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-variant shadow-[0_2px_0_#121214] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
-                  title="Reset 5 Menit"
-                >
-                  <span className="material-symbols-outlined text-[18px]">refresh</span>
-                </button>
-              </div>
+              {/* Popup: Waktu Habis / Gagal Menyelesaikan Misi (in-flow, mendorong konten di bawahnya) */}
+              {isQuestFailed && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-error-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
+                  <span className="text-4xl animate-bounce">⏳</span>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-extrabold text-on-error-container">
+                      Waktu Habis! Misi Belum Tuntas
+                    </h3>
+                    <p className="text-xs text-on-error-container/80 mt-1 max-w-xs mx-auto">
+                      Nggak apa-apa, ini bukan kegagalan permanen. Yuk atur ulang dan coba lagi dengan langkah yang lebih kecil!
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startNewMissionRound}
+                    className="mt-1 flex items-center gap-2 px-5 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px] animate-spin" style={{ animationDuration: '2s' }}>refresh</span>
+                    <span>Ulangi Misi 5 Menit</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Popup: Semua Misi Berhasil Diselesaikan (in-flow, mendorong konten di bawahnya) */}
+              {isAllMissionsCleared && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-primary-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
+                  <span className="text-4xl animate-bounce">🎉</span>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-extrabold text-on-primary-container">
+                      Misi 5 Menit Berhasil Dituntaskan!
+                    </h3>
+                    <p className="text-xs text-on-primary-container/80 mt-1 max-w-xs mx-auto">
+                      Kerja bagus! Semua langkah kecil sudah selesai. Momentum ini layak dirayakan ✨
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startNewMissionRound}
+                    className="mt-1 flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">refresh</span>
+                    <span>Mulai Misi Baru</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 3 Playful Mission Cards Stack */}
@@ -605,7 +727,7 @@ export default function FlowStudio() {
                     <button
                       type="button"
                       onClick={() => handleTaskCheck(microTasks[0])}
-                      disabled={activeMissionIndex !== 0}
+                      disabled={isQuestLocked || activeMissionIndex !== 0}
                       className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 cursor-pointer shadow-xs transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-60 ${
                         microTasks[0].completed
                           ? 'bg-primary text-on-primary'
@@ -661,7 +783,7 @@ export default function FlowStudio() {
                     <button
                       type="button"
                       onClick={() => handleTaskCheck(microTasks[1])}
-                      disabled={activeMissionIndex !== 1}
+                      disabled={isQuestLocked || activeMissionIndex !== 1}
                       className="px-4 py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span>{microTasks[1].completed ? 'Lanjut ke Misi 3 →' : activeMissionIndex === 1 ? 'Tandai Selesai' : 'Selesaikan Misi 1 dulu'}</span>
@@ -670,7 +792,7 @@ export default function FlowStudio() {
                     <button
                       type="button"
                       onClick={() => sliceTaskSmaller(microTasks[1].id)}
-                      disabled={activeMissionIndex !== 1}
+                      disabled={isQuestLocked || activeMissionIndex !== 1}
                       className="px-4 py-2.5 rounded-full bg-surface-container-lowest text-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span>Kecilin Lagi</span>
@@ -678,7 +800,7 @@ export default function FlowStudio() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setQuestTime(TOTAL_QUEST_TIME)}
+                      onClick={resetQuestTimer}
                       className="px-3.5 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant text-xs font-bold shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[16px]">timer</span>
@@ -697,7 +819,7 @@ export default function FlowStudio() {
                     <button
                       type="button"
                       onClick={() => handleTaskCheck(microTasks[2])}
-                      disabled={activeMissionIndex !== 2}
+                      disabled={isQuestLocked || activeMissionIndex !== 2}
                       className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 cursor-pointer shadow-xs transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-60 ${
                         microTasks[2].completed
                           ? 'bg-primary text-on-primary'
@@ -720,7 +842,7 @@ export default function FlowStudio() {
                   <button
                     type="button"
                     onClick={() => handleTaskCheck(microTasks[2])}
-                    disabled={activeMissionIndex !== 2}
+                    disabled={isQuestLocked || activeMissionIndex !== 2}
                     className="shrink-0 rounded-full bg-primary px-3.5 py-2 text-xs font-bold text-on-primary shadow-xs transition-all disabled:cursor-not-allowed disabled:bg-surface-container-highest disabled:text-on-surface-variant"
                   >
                     {microTasks[2].completed ? 'Selesai ✨' : activeMissionIndex === 2 ? 'Tandai Selesai' : 'Setelah Misi 2'}
