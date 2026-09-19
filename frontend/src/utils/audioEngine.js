@@ -213,6 +213,34 @@ class ProceduralSoundscapeEngine {
     }
   }
 
+  playSuccessEffect() {
+    try {
+      this.init();
+      const startAt = this.ctx.currentTime;
+      const notes = [
+        { frequency: 659.25, offset: 0, duration: 0.12 },
+        { frequency: 880, offset: 0.1, duration: 0.2 },
+      ];
+
+      notes.forEach(({ frequency, offset, duration }) => {
+        const oscillator = this.ctx.createOscillator();
+        const noteGain = this.ctx.createGain();
+        const noteStart = startAt + offset;
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(frequency, noteStart);
+        noteGain.gain.setValueAtTime(0.0001, noteStart);
+        noteGain.gain.exponentialRampToValueAtTime(0.075, noteStart + 0.025);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, noteStart + duration);
+        oscillator.connect(noteGain);
+        noteGain.connect(this.masterGain);
+        oscillator.start(noteStart);
+        oscillator.stop(noteStart + duration + 0.01);
+      });
+    } catch {
+      // Audio is optional and must never interrupt quiz interactions.
+    }
+  }
+
   setVolume(val) {
     this.volume = Math.max(0, Math.min(1, val));
     if (this.masterGain && this.ctx) {

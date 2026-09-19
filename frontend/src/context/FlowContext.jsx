@@ -24,6 +24,7 @@ export function FlowProvider({ children }) {
   const [selectedMood, setSelectedMood] = useState('Happy');
   const [selectedMascot, setSelectedMascot] = useState('Gentle');
   const [streakDays, setStreakDays] = useState(0);
+  const [streakPopup, setStreakPopup] = useState(null);
   const [authUser, setAuthUser] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [guestAllowed, setGuestAllowed] = useState(false);
@@ -56,13 +57,20 @@ export function FlowProvider({ children }) {
     return payload;
   };
 
+  const applyStreak = (nextStreak) => {
+    setStreakDays((previousStreak) => {
+      if (nextStreak > previousStreak) setStreakPopup(nextStreak);
+      return nextStreak;
+    });
+  };
+
   const refreshStoredSessions = async () => {
     setIsVaultLoading(true);
     try {
       if (token()) {
         const profile = await request('/sessions');
         setVaultEntries((profile.sessions || []).map(sessionToVaultEntry));
-        setStreakDays(profile.streakDays || 0);
+        applyStreak(profile.streakDays || 0);
         setAuthUser((current) => (current ? { ...current, ...profile } : current));
       } else {
         setVaultEntries(await loadDecryptedVault());
@@ -255,14 +263,14 @@ export function FlowProvider({ children }) {
 
   const value = useMemo(() => ({
     step, setStep, selectedMood, setSelectedMood, selectedMascot, setSelectedMascot,
-    streakDays, authUser, isAuthLoading, guestAllowed, authError, setAuthError,
+    streakDays, streakPopup, dismissStreakPopup: () => setStreakPopup(null), authUser, isAuthLoading, guestAllowed, authError, setAuthError,
     authenticate, continueAsGuest, startLogin, logout,
     triageData, setTriageData, processTriage, isProcessingSlice,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, addCustomMicroAction, affirmation, totalXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, saveCurrentSession, clearAllVault,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

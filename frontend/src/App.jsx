@@ -4,9 +4,10 @@ import GentleTriage from './components/pages/GentleTriage';
 import FlowStudio from './components/pages/FlowStudio';
 import SafeHarbor from './components/pages/SafeHarbor';
 import LoginPage from './components/LoginPage';
+import StreakPopup from './components/StreakPopup';
 
 function MainContent() {
-  const { step, isAuthLoading, authUser, guestAllowed } = useFlow();
+  const { step, isAuthLoading, authUser, guestAllowed, streakPopup, dismissStreakPopup } = useFlow();
 
   if (isAuthLoading) {
     return <main className="min-h-screen bg-background flex items-center justify-center text-sm font-bold text-on-surface-variant">Memuat Careflow...</main>;
@@ -29,6 +30,7 @@ function MainContent() {
           <span className="text-xs text-on-surface-variant text-center md:text-right font-medium">© 2026 Careflow Space • MindCraft Web Competition 2026</span>
         </div>
       </footer>
+      {streakPopup != null && <StreakPopup streakDays={streakPopup} onDone={dismissStreakPopup} />}
     </>
   );
 }

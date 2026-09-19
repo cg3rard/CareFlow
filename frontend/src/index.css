@@ -137,6 +137,176 @@
   animation: pageSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Full-screen fire streak celebration: a large flame, orbiting fire, and rising embers. */
+@keyframes streakCelebrationEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.78) translateY(26px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.04) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-streak-celebration-enter {
+  animation: streakCelebrationEnter 0.64s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes streakFireGlow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+.animate-streak-fire-glow {
+  animation: streakFireGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes streakRingPulse {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.84);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.1);
+  }
+}
+
+.animate-streak-ring-pulse {
+  animation: streakRingPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes streakOrbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-streak-orbit {
+  animation: streakOrbit 6s linear infinite;
+}
+
+@keyframes streakOrbitFlame {
+  0%, 100% {
+    opacity: 0.58;
+    transform: scale(0.82) rotate(-5deg);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.2, 0.9) rotate(7deg);
+  }
+  70% {
+    transform: scale(0.92, 1.12) rotate(-4deg);
+  }
+}
+
+.animate-streak-orbit-flame {
+  animation: streakOrbitFlame 0.82s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes streakFireBack {
+  0%, 100% {
+    opacity: 0.58;
+    transform: scale(0.95, 1.04) skewX(-3deg);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.08, 0.94) skewX(4deg);
+  }
+}
+
+.animate-streak-fire-back {
+  animation: streakFireBack 1.05s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes streakFireMain {
+  0% {
+    opacity: 0;
+    transform: scale(0.45) translateY(36px);
+  }
+  32% {
+    opacity: 1;
+    transform: scale(1.14) translateY(-10px) skewX(-3deg);
+  }
+  55% {
+    transform: scale(0.97, 1.06) skewX(4deg);
+  }
+  78% {
+    transform: scale(1.05, 0.95) skewX(-3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) skewX(0deg);
+  }
+}
+
+.animate-streak-fire-main {
+  animation: streakFireMain 0.9s cubic-bezier(0.16, 1, 0.3, 1) both, streakFireMain 1.15s 0.9s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+@keyframes streakFireCore {
+  0%, 100% {
+    opacity: 0.78;
+    transform: translateY(24%) scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(18%) scale(1.16);
+  }
+}
+
+.animate-streak-fire-core {
+  animation: streakFireCore 0.68s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes streakEmber {
+  0% {
+    opacity: 0;
+    transform: translateY(0) translateX(0) scale(0.55);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-72vh) translateX(var(--drift, 20px)) scale(0.25);
+  }
+}
+
+.animate-streak-ember {
+  animation-name: streakEmber;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes streakMessageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-streak-message-enter {
+  animation: streakMessageEnter 0.48s 0.42s ease-out both;
+}
 /* Gentle bounce for mascots */
 @keyframes mascotBounce {
   0%, 100% {
@@ -398,4 +568,43 @@
 
 .careflow-app [class*="shadow-[0_"] {
   box-shadow: 0 8px 24px rgb(27 27 29 / 7%) !important;
+}
+
+/* Yes/No quiz answer confirmation. */
+@keyframes quizAnswerConfirmation {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes quizCheckmarkPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.25) rotate(-18deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.13) rotate(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.animate-quiz-answer-confirmation {
+  animation: quizAnswerConfirmation 0.24s ease-out both;
+}
+
+.animate-quiz-checkmark-pop {
+  animation: quizCheckmarkPop 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

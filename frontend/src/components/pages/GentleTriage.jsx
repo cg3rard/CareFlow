@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
+import { audioEngine } from '../../utils/audioEngine';
 import { getDailyQuizQuestions, estimateStressFromAnswers, stressLevelLabel } from '../../utils/dailyQuiz';
 
 function pickRandomQuote(quotes) {
@@ -34,47 +35,74 @@ export default function GentleTriage() {
   const [quizQuestions] = useState(() => getDailyQuizQuestions());
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState([]);
-  const [quizFeedback, setQuizFeedback] = useState('');
+  const [quizConfirmationMessage, setQuizConfirmationMessage] = useState('');
+  const [isQuizAnswerConfirming, setIsQuizAnswerConfirming] = useState(false);
+  const [isQuizCompleteModalOpen, setIsQuizCompleteModalOpen] = useState(false);
   const [sleepHours, setSleepHours] = useState(null);
   const [sleepHoursDraft, setSleepHoursDraft] = useState('7');
   const [sleepLogged, setSleepLogged] = useState(false);
 
   const handleLogSleepHours = () => {
     const parsed = Number.parseFloat(sleepHoursDraft);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 12) {
-      setQuizFeedback('Geser slider untuk memilih jam tidur (0–12 jam).');
-      setTimeout(() => setQuizFeedback(''), 2500);
-      return;
-    }
-    setSleepHours(parsed);
-    setSleepLogged(true);
-    setQuizFeedback(`Tercatat: ${parsed} jam tidur malam ini. Lanjut ke pertanyaan berikutnya...`);
-    setTimeout(() => setQuizFeedback(''), 2500);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 12 || isQuizAnswerConfirming) return;
+
+    setQuizConfirmationMessage('Durasi tidur tersimpan');
+    setIsQuizAnswerConfirming(true);
+
+    window.setTimeout(() => {
+      setSleepHours(parsed);
+      setSleepLogged(true);
+      setIsQuizAnswerConfirming(false);
+    }, 800);
   };
 
   const handleQuizAnswer = (ans) => {
-    const nextAnswers = [...quizAnswers, ans];
-    setQuizAnswers(nextAnswers);
+    if (isQuizAnswerConfirming || quizCompleted) return;
 
-    if (quizIndex < quizQuestions.length - 1) {
-      setQuizIndex(quizIndex + 1);
-      setQuizFeedback(`Jawaban "${ans === 'yes' ? 'Ya' : 'Tidak'}" tercatat! Memuat pertanyaan ${quizIndex + 2}...`);
-      setTimeout(() => setQuizFeedback(''), 2500);
-    } else {
-      setQuizFeedback('🎉 Kuis selesai! Resonansi saraf vagus kamu telah disinkronkan ke Flow Studio.');
+    audioEngine.playSuccessEffect();
+    const isLastQuestion = quizIndex === quizQuestions.length - 1;
+    if (isLastQuestion) {
+      setQuizAnswers((currentAnswers) => [...currentAnswers, ans]);
+      setIsQuizCompleteModalOpen(true);
+      return;
     }
+
+    setQuizConfirmationMessage('Jawaban tercatat');
+    setIsQuizAnswerConfirming(true);
+
+    window.setTimeout(() => {
+      setQuizAnswers((currentAnswers) => [...currentAnswers, ans]);
+      setQuizIndex((currentIndex) => currentIndex + 1);
+      setIsQuizAnswerConfirming(false);
+    }, 800);
   };
 
   const resetQuiz = () => {
     setQuizIndex(0);
     setQuizAnswers([]);
-    setQuizFeedback('');
+    setQuizConfirmationMessage('');
+    setIsQuizAnswerConfirming(false);
+    setIsQuizCompleteModalOpen(false);
     setSleepHours(null);
     setSleepLogged(false);
     setSleepHoursDraft('7');
   };
 
+  const resetYesNoQuiz = () => {
+    setQuizIndex(0);
+    setQuizAnswers([]);
+    setQuizConfirmationMessage('');
+    setIsQuizAnswerConfirming(false);
+    setIsQuizCompleteModalOpen(false);
+  };
+
+  const handleGoToFlowStudio = () => {
+    setIsQuizCompleteModalOpen(false);
+    setStep(2);
+  };
+
   const quizCompleted = quizAnswers.length === quizQuestions.length;
+  const lastQuizAnswer = quizAnswers[quizAnswers.length - 1];
   const stressScore = quizCompleted ? estimateStressFromAnswers(quizAnswers, quizQuestions) : null;
   const stressInfo = stressLevelLabel(stressScore);
 
@@ -631,7 +659,8 @@ export default function GentleTriage() {
                     <button
                       type="button"
                       onClick={handleLogSleepHours}
-                      className="mt-1 py-3 px-5 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                      disabled={isQuizAnswerConfirming}
+                      className="mt-1 py-3 px-5 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:cursor-wait disabled:opacity-70"
                     >
                       Simpan
                     </button>
@@ -656,14 +685,16 @@ export default function GentleTriage() {
                     <button
                       type="button"
                       onClick={() => handleQuizAnswer('yes')}
-                      className="py-3 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
+                      disabled={isQuizAnswerConfirming}
+                      className="py-3 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer disabled:cursor-wait disabled:opacity-70"
                     >
                       Yes
                     </button>
                     <button
                       type="button"
                       onClick={() => handleQuizAnswer('no')}
-                      className="py-3 rounded-full font-bold text-sm bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
+                      disabled={isQuizAnswerConfirming}
+                      className="py-3 rounded-full font-bold text-sm bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer disabled:cursor-wait disabled:opacity-70"
                     >
                       No
                     </button>
@@ -671,9 +702,58 @@ export default function GentleTriage() {
                 </>
               )}
 
-              {quizFeedback && (
-                <div className="mt-4 p-2.5 rounded-full bg-surface-container-lowest/90 text-center text-xs text-on-primary-container font-bold shadow-xs animate-fadeIn">
-                  {quizFeedback}
+              {isQuizAnswerConfirming && (
+                <div
+                  aria-live="polite"
+                  className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-[2.5rem] bg-primary-container/95 backdrop-blur-sm animate-quiz-answer-confirmation"
+                >
+                  <div className="w-20 h-20 rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_5px_0_#121214] flex items-center justify-center animate-quiz-checkmark-pop">
+                    <span className="material-symbols-outlined text-5xl" aria-hidden="true">check</span>
+                  </div>
+                  <span className="text-sm font-bold text-on-primary-container">{quizConfirmationMessage}</span>
+                </div>
+              )}
+
+              {isQuizCompleteModalOpen && !isQuizAnswerConfirming && (
+                <div
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-[2.5rem] bg-primary-container p-6 text-center animate-quiz-answer-confirmation"
+                  role="dialog"
+                  aria-labelledby="quiz-complete-title"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_4px_0_#121214] animate-quiz-checkmark-pop">
+                    <span className="material-symbols-outlined text-4xl" aria-hidden="true">check_circle</span>
+                  </div>
+                  <span className="mt-4 text-xs font-bold uppercase tracking-wider text-on-primary-container">Check-in selesai</span>
+                  <h2 id="quiz-complete-title" className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-on-primary-container">
+                    Kuis kamu sudah selesai!
+                  </h2>
+                  <p className="mt-2 max-w-sm text-sm font-medium leading-relaxed text-on-primary-container/80">
+                    {lastQuizAnswer === 'no'
+                      ? 'Kuis kamu sudah selesai. Apakah kamu ingin mengulang kuis Yes/No?'
+                      : 'Kuis kamu sudah selesai. Lanjutkan ke Flow Studio untuk memakai hasil check-in ini.'}
+                  </p>
+                  <div className="mt-5 flex justify-center">
+                    {lastQuizAnswer === 'no' ? (
+                      <button
+                        type="button"
+                        onClick={resetYesNoQuiz}
+                        title="Ulangi Yes/No Quiz"
+                        aria-label="Ulangi Yes/No Quiz"
+                        className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] transition-all hover:bg-surface-container active:translate-y-0.5 active:shadow-none"
+                      >
+                        <span className="material-symbols-outlined text-[24px]" aria-hidden="true">refresh</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleGoToFlowStudio}
+                        className="flex items-center justify-center gap-2 rounded-full bg-inverse-surface px-6 py-3 text-sm font-bold text-inverse-on-surface shadow-[0_4px_0_#121214] transition-all hover:opacity-90 active:translate-y-1 active:shadow-none"
+                      >
+                        <span>Ke Flow Studio</span>
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
