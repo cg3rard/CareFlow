@@ -137,7 +137,16 @@
   animation: pageSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Full-screen fire streak celebration: a large flame, orbiting fire, and rising embers. */
+/* Full-screen fire streak celebration overlay with a static gradient flame and drifting embers. */
+@keyframes streakFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-streak-fade-in {
+  animation: streakFadeIn 0.35s ease-out both;
+}
+
 @keyframes streakCelebrationEnter {
   from {
     opacity: 0;
@@ -187,92 +196,6 @@
   animation: streakRingPulse 1.6s ease-in-out infinite;
 }
 
-@keyframes streakOrbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.animate-streak-orbit {
-  animation: streakOrbit 6s linear infinite;
-}
-
-@keyframes streakOrbitFlame {
-  0%, 100% {
-    opacity: 0.58;
-    transform: scale(0.82) rotate(-5deg);
-  }
-  45% {
-    opacity: 1;
-    transform: scale(1.2, 0.9) rotate(7deg);
-  }
-  70% {
-    transform: scale(0.92, 1.12) rotate(-4deg);
-  }
-}
-
-.animate-streak-orbit-flame {
-  animation: streakOrbitFlame 0.82s ease-in-out infinite;
-  transform-origin: bottom center;
-}
-
-@keyframes streakFireBack {
-  0%, 100% {
-    opacity: 0.58;
-    transform: scale(0.95, 1.04) skewX(-3deg);
-  }
-  50% {
-    opacity: 0.92;
-    transform: scale(1.08, 0.94) skewX(4deg);
-  }
-}
-
-.animate-streak-fire-back {
-  animation: streakFireBack 1.05s ease-in-out infinite;
-  transform-origin: bottom center;
-}
-
-@keyframes streakFireMain {
-  0% {
-    opacity: 0;
-    transform: scale(0.45) translateY(36px);
-  }
-  32% {
-    opacity: 1;
-    transform: scale(1.14) translateY(-10px) skewX(-3deg);
-  }
-  55% {
-    transform: scale(0.97, 1.06) skewX(4deg);
-  }
-  78% {
-    transform: scale(1.05, 0.95) skewX(-3deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0) skewX(0deg);
-  }
-}
-
-.animate-streak-fire-main {
-  animation: streakFireMain 0.9s cubic-bezier(0.16, 1, 0.3, 1) both, streakFireMain 1.15s 0.9s ease-in-out infinite alternate;
-  transform-origin: bottom center;
-}
-
-@keyframes streakFireCore {
-  0%, 100% {
-    opacity: 0.78;
-    transform: translateY(24%) scale(0.85);
-  }
-  50% {
-    opacity: 1;
-    transform: translateY(18%) scale(1.16);
-  }
-}
-
-.animate-streak-fire-core {
-  animation: streakFireCore 0.68s ease-in-out infinite;
-  transform-origin: bottom center;
-}
-
 @keyframes streakEmber {
   0% {
     opacity: 0;
@@ -307,6 +230,7 @@
 .animate-streak-message-enter {
   animation: streakMessageEnter 0.48s 0.42s ease-out both;
 }
+
 /* Gentle bounce for mascots */
 @keyframes mascotBounce {
   0%, 100% {
