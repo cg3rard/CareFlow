@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { useFlow } from '../context/FlowContext';
-import EmergencyModal from './EmergencyModal';
 
 const navItems = [
   { id: 1, label: 'Daily Mood Triage' },
@@ -21,7 +19,6 @@ function getMoodStyle(mood) {
 
 export default function Navbar() {
   const { step, setStep, activeSound, toggleSoundscape, selectedMood, resetFlow, authUser, startLogin, logout } = useFlow();
-  const [isEmergencyOpen, setIsEmergencyOpen] = useState(false);
   const displayName = authUser?.name || 'Tamu';
   const initials = displayName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   const moodStyle = getMoodStyle(selectedMood);
@@ -44,7 +41,6 @@ export default function Navbar() {
               <span className="material-symbols-outlined text-[19px]">{activeSound ? 'pause' : 'graphic_eq'}</span>
             </button>
             <div className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-[0_2px_0_#121214] transition-colors ${moodStyle.className}`}><span className="material-symbols-outlined text-[17px]">{moodStyle.icon}</span><span>{selectedMood}</span></div>
-            <button type="button" onClick={() => setIsEmergencyOpen(true)} className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-error-container text-on-error-container shadow-[0_2px_0_#121214] hover:bg-red-200" title="Akses bantuan darurat" aria-label="Akses bantuan darurat"><span className="material-symbols-outlined text-[18px]">local_police</span></button>
             {authUser ? <button type="button" onClick={logout} title="Keluar dari akun" className="flex items-center gap-2 rounded-full bg-surface-container-lowest p-1 pr-2.5 border border-surface-container shadow-[0_2px_0_#121214]"><span className="w-7 h-7 rounded-full bg-primary text-on-primary text-[10px] font-bold flex items-center justify-center">{initials}</span><span className="hidden lg:inline max-w-24 truncate text-xs font-bold text-on-surface">{displayName}</span><span className="material-symbols-outlined text-[16px] text-on-surface-variant">logout</span></button> : <button type="button" onClick={startLogin} className="rounded-full bg-primary px-3 py-2 text-xs font-bold text-on-primary shadow-[0_2px_0_#121214]">Masuk</button>}
           </div>
         </div>
@@ -52,7 +48,6 @@ export default function Navbar() {
           {navItems.map((item) => <button type="button" key={item.id} onClick={() => setStep(item.id)} className={`whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${step === item.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container'}`}>{item.label}</button>)}
         </nav>
       </header>
-      <EmergencyModal isOpen={isEmergencyOpen} onClose={() => setIsEmergencyOpen(false)} />
     </>
   );
 }
