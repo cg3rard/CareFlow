@@ -1,0 +1,6 @@
+data/
+*.exe
+*.log
+.env
+.env.*
+!.env.example

@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: careflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: careflow
+      POSTGRES_USER: careflow
+      POSTGRES_PASSWORD: change_me_before_production
+    ports:
+      - "5432:5432"
+    volumes:
+      - careflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careflow -d careflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: careflow-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      APP_ENV: production
+      DATABASE_URL: postgres://careflow:change_me_before_production@postgres:5432/careflow?sslmode=disable
+      FRONTEND_ORIGIN: http://localhost:5174
+      DEMO_NAME: Careflow Demo
+      DEMO_EMAIL: demo@careflow.local
+      DEMO_PASSWORD: CareflowDemo2026!
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8080/api
+    container_name: careflow-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5174:80"
+
+volumes:
+  careflow_postgres_data:
