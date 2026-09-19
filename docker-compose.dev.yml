@@ -1,7 +1,13 @@
+# Development compose override with live-reload for backend and frontend.
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Backend: Air watches .go files and rebuilds/restarts automatically.
+# Frontend: Vite dev server with HMR (instant browser updates on save).
 services:
   postgres:
     image: postgres:16.6-alpine
-    container_name: careflow-postgres
+    container_name: careflow-postgres-dev
     restart: unless-stopped
     environment:
       POSTGRES_DB: careflow
@@ -10,7 +16,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - careflow_postgres_data:/var/lib/postgresql/data
+      - careflow_postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U careflow -d careflow"]
       interval: 5s
@@ -20,14 +26,15 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: careflow-backend
+      dockerfile: Dockerfile.dev
+    container_name: careflow-backend-dev
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       PORT: 8080
-      APP_ENV: production
+      APP_ENV: development
       DATABASE_URL: postgres://careflow:change_me_before_production@postgres:5432/careflow?sslmode=disable
       FRONTEND_ORIGIN: http://localhost:5173
       DEMO_NAME: Careflow Demo
@@ -36,25 +43,27 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8080:8080"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
+    volumes:
+      - ./backend:/app
+      - careflow_backend_dev_tmp:/app/tmp
 
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_BASE_URL: http://localhost:8080/api
-    container_name: careflow-frontend
+      dockerfile: Dockerfile.dev
+    container_name: careflow-frontend-dev
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080/api
     ports:
-      - "5173:80"
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - careflow_frontend_dev_node_modules:/app/node_modules
 
 volumes:
-  careflow_postgres_data:
+  careflow_postgres_dev_data:
+  careflow_backend_dev_tmp:
+  careflow_frontend_dev_node_modules:

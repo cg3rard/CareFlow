@@ -1,0 +1,16 @@
+# Development image with live-reload via Air.
+# Not used for production — see Dockerfile for the production build.
+FROM golang:1.27-alpine
+WORKDIR /app
+
+RUN apk add --no-cache git \
+    && go install github.com/air-verse/air@v1.62.0
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Source is bind-mounted at runtime (see docker-compose.dev.yml),
+# so we don't COPY . here — Air watches the mounted files instead.
+
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]

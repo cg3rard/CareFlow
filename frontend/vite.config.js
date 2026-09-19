@@ -8,4 +8,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    // Polling is required for reliable file-change detection when running
+    // inside Docker with a bind-mounted source directory (notably on Windows).
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
+    host: true,
+    strictPort: true,
+  },
 })

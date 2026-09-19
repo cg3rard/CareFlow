@@ -1,0 +1,25 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/careflow-backend ."
+  bin = "./tmp/careflow-backend"
+  full_bin = "./tmp/careflow-backend"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "data", "migrations"]
+  exclude_regex = ["_test.go"]
+  delay = 300
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "2s"
+  # Windows bind mounts (Docker Desktop) don't propagate inotify events,
+  # so polling is required to detect file changes reliably.
+  poll = true
+  poll_interval = 500
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

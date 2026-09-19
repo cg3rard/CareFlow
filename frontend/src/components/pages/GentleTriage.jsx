@@ -1,5 +1,12 @@
 import { useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
+import { getDailyQuizQuestions, estimateStressFromAnswers, stressLevelLabel } from '../../utils/dailyQuiz';
+
+function pickRandomQuote(quotes) {
+  if (!quotes || quotes.length === 0) return null;
+  const randomIndex = Math.floor(Math.random() * quotes.length);
+  return quotes[randomIndex];
+}
 
 export default function GentleTriage() {
   const {
@@ -20,17 +27,30 @@ export default function GentleTriage() {
   } = useFlow();
 
   const [bellRung, setBellRung] = useState(false);
+  const [activeQuote, setActiveQuote] = useState(null);
 
-  // Multi-step Interactive Quick Quiz
+  // Multi-step Interactive Quick Quiz — 4 questions rotate daily so the check-in
+  // stays fresh instead of repeating the same 4 questions every day.
+  const [quizQuestions] = useState(() => getDailyQuizQuestions());
   const [quizIndex, setQuizIndex] = useState(0);
-  const quizQuestions = [
-    { q: 'Have you been sleeping well recently?', tag: 'Pola Tidur' },
-    { q: 'Felt muscle tightness in your neck or shoulders today?', tag: 'Tension Fisik' },
-    { q: 'Do you have multiple unfinished deadlines looping in your head?', tag: 'Cognitive Loop' },
-    { q: 'Ready to let our 5-minute micro-slicer take the wheel?', tag: 'Action Readiness' },
-  ];
   const [quizAnswers, setQuizAnswers] = useState([]);
   const [quizFeedback, setQuizFeedback] = useState('');
+  const [sleepHours, setSleepHours] = useState(null);
+  const [sleepHoursDraft, setSleepHoursDraft] = useState('7');
+  const [sleepLogged, setSleepLogged] = useState(false);
+
+  const handleLogSleepHours = () => {
+    const parsed = Number.parseFloat(sleepHoursDraft);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 12) {
+      setQuizFeedback('Geser slider untuk memilih jam tidur (0–12 jam).');
+      setTimeout(() => setQuizFeedback(''), 2500);
+      return;
+    }
+    setSleepHours(parsed);
+    setSleepLogged(true);
+    setQuizFeedback(`Tercatat: ${parsed} jam tidur malam ini. Lanjut ke pertanyaan berikutnya...`);
+    setTimeout(() => setQuizFeedback(''), 2500);
+  };
 
   const handleQuizAnswer = (ans) => {
     const nextAnswers = [...quizAnswers, ans];
@@ -49,7 +69,14 @@ export default function GentleTriage() {
     setQuizIndex(0);
     setQuizAnswers([]);
     setQuizFeedback('');
+    setSleepHours(null);
+    setSleepLogged(false);
+    setSleepHoursDraft('7');
   };
+
+  const quizCompleted = quizAnswers.length === quizQuestions.length;
+  const stressScore = quizCompleted ? estimateStressFromAnswers(quizAnswers, quizQuestions) : null;
+  const stressInfo = stressLevelLabel(stressScore);
 
   const handleSaveVibe = async () => {
     await saveCurrentSession();
@@ -68,13 +95,22 @@ export default function GentleTriage() {
     }));
   };
 
+  const handleMascotSelect = (mascot) => {
+    setSelectedMascot(mascot.id);
+    setActiveQuote(pickRandomQuote(mascot.quotes));
+  };
+
   const mascots = [
     {
       id: 'Gentle',
       name: 'Gentle',
       bg: 'bg-primary-container',
       text: 'text-on-primary-container',
-      quote: 'Tarik napas perlahan. Hari ini kita selesaikan satu per satu 🌿',
+      quotes: [
+        'Tarik napas perlahan. Hari ini kita selesaikan satu per satu 🌿',
+        'Nggak apa-apa jalan pelan-pelan, yang penting tetap melangkah 🍃',
+        'Beri dirimu ruang untuk lembut ke diri sendiri hari ini 🌸',
+      ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-primary-container" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
           <path d="M 28 48 Q 38 56 48 48"></path>
@@ -88,7 +124,11 @@ export default function GentleTriage() {
       name: 'Spun Out',
       bg: 'bg-tertiary-fixed',
       text: 'text-on-tertiary-fixed',
-      quote: 'Pikiran kusut berputar? Tenang, mari kita rapikan benang kusutnya 🌀',
+      quotes: [
+        'Pikiran kusut berputar? Tenang, mari kita rapikan benang kusutnya 🌀',
+        'Terlalu banyak yang muter di kepala? Yuk kita pilah satu-satu 🧵',
+        'Wajar kok kalau pikiran terasa berantakan, kita uraikan bareng-bareng ✨',
+      ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-tertiary-fixed" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
           <circle cx="36" cy="42" fill="currentColor" r="6"></circle>
@@ -103,7 +143,11 @@ export default function GentleTriage() {
       name: 'Fuming',
       bg: 'bg-secondary-container',
       text: 'text-on-secondary-container',
-      quote: 'Merasa kesal atau frustrasi? Wajar banget, salurkan ke tindakan mikro 🔥',
+      quotes: [
+        'Merasa kesal atau frustrasi? Wajar banget, salurkan ke tindakan mikro 🔥',
+        'Emosi yang menggebu itu valid. Yuk kita ubah jadi energi yang berguna 💥',
+        'Boleh kok marah, yang penting kita cari cara sehat buat melepaskannya 🌋',
+      ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-secondary-container" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
           <line x1="28" x2="44" y1="38" y2="46"></line>
@@ -119,7 +163,11 @@ export default function GentleTriage() {
       name: 'Zapped',
       bg: 'bg-secondary-fixed',
       text: 'text-secondary',
-      quote: 'Energi dan dopamin lagi tinggi! Ayo manfaatkan untuk 1 langkah awal ⚡',
+      quotes: [
+        'Energi dan dopamin lagi tinggi! Ayo manfaatkan untuk 1 langkah awal ⚡',
+        'Kamu lagi bertenaga nih, pas banget buat gaskeun satu misi kecil 🚀',
+        'Semangat lagi berapi-api, yuk salurkan ke hal produktif sekarang 🔋',
+      ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-secondary" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
           <path d="M 30 46 Q 38 38 46 46"></path>
@@ -134,7 +182,11 @@ export default function GentleTriage() {
       name: 'Drowsy',
       bg: 'bg-tertiary-fixed-dim',
       text: 'text-on-tertiary-fixed-variant',
-      quote: 'Lelah fisik butuh rehat tanpa rasa bersalah. Istirahat sejenak ya 🌙',
+      quotes: [
+        'Lelah fisik butuh rehat tanpa rasa bersalah. Istirahat sejenak ya 🌙',
+        'Kalau ngantuk berat, nggak apa-apa pause dulu sebentar 😴',
+        'Tubuh capek itu sinyal buat istirahat, dengarkan dirimu ya 🛋️',
+      ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-tertiary-fixed-variant" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
           <line x1="32" x2="44" y1="46" y2="46"></line>
@@ -247,7 +299,7 @@ export default function GentleTriage() {
             <div className="relative z-10 mt-6 p-3 rounded-2xl bg-surface-container border border-surface-container-high flex items-center gap-3 animate-fadeIn">
               <span className="text-lg">💬</span>
               <p className="text-xs sm:text-sm font-bold text-on-surface italic">
-                "{activeMascotObj.quote}"
+                "{activeQuote || activeMascotObj.quotes?.[0]}"
               </p>
             </div>
 
@@ -259,7 +311,7 @@ export default function GentleTriage() {
                   return (
                     <div
                       key={m.id}
-                      onClick={() => setSelectedMascot(m.id)}
+                      onClick={() => handleMascotSelect(m)}
                       className="group cursor-pointer flex flex-col items-center gap-1.5 transition-transform hover:-translate-y-2 active:scale-95 select-none"
                     >
                       <div
@@ -420,8 +472,8 @@ export default function GentleTriage() {
               Daily Mood Triage Matrix
             </h2>
           </div>
-          <span className="text-xs text-on-surface-variant font-medium">
-            {metricStatus} • data wearable belum tersedia
+          <span className="text-xs text-on-surface-variant font-medium text-right max-w-[220px] sm:max-w-none">
+            {metricStatus} • data self-report, sensor wearable belum terhubung
           </span>
         </div>
 
@@ -438,7 +490,7 @@ export default function GentleTriage() {
                     <span className="text-xs uppercase tracking-wider font-bold">Sleep Duration</span>
                   </div>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-surface-container-lowest/80 text-on-surface font-bold shadow-xs">
-                    Belum tersedia
+                    {sleepLogged ? 'Self-report' : 'Belum diisi'}
                   </span>
                 </div>
 
@@ -456,10 +508,19 @@ export default function GentleTriage() {
 
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-3xl sm:text-4xl font-bold tracking-tight">—</span>
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight">
+                      {sleepLogged ? sleepHours : '—'}
+                    </span>
+                    {sleepLogged && <span className="text-sm font-bold ml-1">jam</span>}
                   </div>
                   <span className="text-xs font-bold text-on-secondary-container">
-                    Belum ada data tidur
+                    {sleepLogged
+                      ? sleepHours < 6
+                        ? 'Kurang dari ideal'
+                        : sleepHours <= 9
+                          ? 'Dalam rentang sehat'
+                          : 'Lebih dari biasanya'
+                      : 'Isi di Yes/No Quiz →'}
                   </span>
                 </div>
               </div>
@@ -471,7 +532,7 @@ export default function GentleTriage() {
                     <span className="material-symbols-outlined text-[20px]">psychology_alt</span>
                     <span className="text-xs uppercase tracking-wider font-bold">Stress Indicator</span>
                   </div>
-                  <span className="w-2.5 h-2.5 rounded-full bg-on-tertiary-container/35"></span>
+                  <span className={`w-2.5 h-2.5 rounded-full ${quizCompleted ? (stressScore >= 70 ? 'bg-red-500' : stressScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-on-tertiary-container/35'}`}></span>
                 </div>
 
                 {/* Graduated Step Bar Chart */}
@@ -486,10 +547,13 @@ export default function GentleTriage() {
 
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-3xl sm:text-4xl font-bold tracking-tight">—</span>
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight">
+                      {quizCompleted ? stressScore : '—'}
+                    </span>
+                    {quizCompleted && <span className="text-sm font-bold ml-1">/100</span>}
                   </div>
                   <span className="text-xs font-bold text-on-tertiary-container">
-                    Belum bisa diukur
+                    {quizCompleted ? stressInfo.label : 'Isi di Yes/No Quiz →'}
                   </span>
                 </div>
               </div>
@@ -504,9 +568,9 @@ export default function GentleTriage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs px-3 py-0.5 rounded-full bg-surface-container-lowest/60 text-on-primary-container font-bold shadow-xs">
-                    Question {quizIndex + 1} / {quizQuestions.length}
+                    {sleepLogged ? `Question ${quizIndex + 1} / ${quizQuestions.length}` : 'Sleep Check-in'}
                   </span>
-                  {quizIndex > 0 && (
+                  {(quizIndex > 0 || sleepLogged) && (
                     <button
                       onClick={resetQuiz}
                       className="text-[10px] underline text-on-primary-container hover:opacity-80"
@@ -518,43 +582,94 @@ export default function GentleTriage() {
                 </div>
               </div>
 
-              {/* Quiz Progress Bar */}
+              {/* Quiz Progress Bar (step 0 = sleep hours, steps 1-4 = yes/no questions) */}
               <div className="w-full bg-surface-container-lowest/40 h-1.5 rounded-full mt-3 overflow-hidden">
                 <div
                   className="bg-[#121214] h-full transition-all duration-300"
-                  style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }}
+                  style={{
+                    width: sleepLogged
+                      ? `${((quizIndex + 2) / (quizQuestions.length + 1)) * 100}%`
+                      : `${(1 / (quizQuestions.length + 1)) * 100}%`,
+                  }}
                 />
               </div>
 
-              <div className="my-6">
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-surface-container-lowest/60 px-2 py-0.5 rounded-md inline-block mb-1">
-                  {quizQuestions[quizIndex]?.tag}
-                </span>
-                <h3 className="text-xl sm:text-2xl font-bold text-on-primary-container tracking-tight">
-                  {quizQuestions[quizIndex]?.q}
-                </h3>
-                <p className="text-sm text-on-primary-container/80 mt-1 font-medium">
-                  Quick reflex answers unlock tailored breath anchors in your Flow Studio.
-                </p>
-              </div>
+              {!sleepLogged ? (
+                <>
+                  <div className="my-6">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-surface-container-lowest/60 px-2 py-0.5 rounded-md inline-block mb-1">
+                      Pola Tidur
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-bold text-on-primary-container tracking-tight">
+                      Berapa lama kamu tidur malam ini?
+                    </h3>
+                    <p className="text-sm text-on-primary-container/80 mt-1 font-medium">
+                      Geser slider untuk mengisi kartu Sleep Duration.
+                    </p>
+                  </div>
 
-              {/* Tactile Arcade Buttons */}
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleQuizAnswer('yes')}
-                  className="py-3 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuizAnswer('no')}
-                  className="py-3 rounded-full font-bold text-sm bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
-                >
-                  No
-                </button>
-              </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-baseline justify-center gap-1">
+                      <span className="text-4xl font-bold text-on-primary-container tracking-tight">{sleepHoursDraft}</span>
+                      <span className="text-sm font-bold text-on-primary-container/80">jam</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="12"
+                      step="0.5"
+                      value={sleepHoursDraft}
+                      onChange={(e) => setSleepHoursDraft(e.target.value)}
+                      className="w-full h-2 bg-surface-container-lowest/60 rounded-lg appearance-none cursor-pointer accent-[#121214]"
+                      aria-label="Jam tidur malam ini"
+                    />
+                    <div className="flex justify-between text-[10px] font-bold text-on-primary-container/70 px-0.5">
+                      <span>0 jam</span>
+                      <span>6 jam</span>
+                      <span>12 jam</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLogSleepHours}
+                      className="mt-1 py-3 px-5 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="my-6">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-surface-container-lowest/60 px-2 py-0.5 rounded-md inline-block mb-1">
+                      {quizQuestions[quizIndex]?.tag}
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-bold text-on-primary-container tracking-tight">
+                      {quizQuestions[quizIndex]?.q}
+                    </h3>
+                    <p className="text-sm text-on-primary-container/80 mt-1 font-medium">
+                      Quick reflex answers unlock tailored breath anchors in your Flow Studio.
+                    </p>
+                  </div>
+
+                  {/* Tactile Arcade Buttons */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleQuizAnswer('yes')}
+                      className="py-3 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuizAnswer('no')}
+                      className="py-3 rounded-full font-bold text-sm bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-1 active:shadow-none transition-all text-center cursor-pointer"
+                    >
+                      No
+                    </button>
+                  </div>
+                </>
+              )}
 
               {quizFeedback && (
                 <div className="mt-4 p-2.5 rounded-full bg-surface-container-lowest/90 text-center text-xs text-on-primary-container font-bold shadow-xs animate-fadeIn">

@@ -16,3 +16,6 @@ bin/
 
 # Persistent local account and session data
 data/
+
+# Air live-reload build output
+tmp/
