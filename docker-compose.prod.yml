@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: careflow
       POSTGRES_USER: careflow
-      POSTGRES_PASSWORD: change_me_before_production
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -28,11 +28,11 @@ services:
     environment:
       PORT: 8080
       APP_ENV: production
-      DATABASE_URL: postgres://careflow:change_me_before_production@postgres:5432/careflow?sslmode=disable
-      FRONTEND_ORIGIN: http://localhost:5173
+      DATABASE_URL: postgres://careflow:${POSTGRES_PASSWORD}@postgres:5432/careflow?sslmode=disable
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
       DEMO_NAME: Careflow Demo
       DEMO_EMAIL: demo@careflow.local
-      DEMO_PASSWORD: CareflowDemo2026!
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-CareflowDemo2026!}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8080:8080"
@@ -47,14 +47,14 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://localhost:8080/api
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     container_name: careflow-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "5173:80"
+      - "${FRONTEND_PORT:-80}:80"
 
 volumes:
   careflow_postgres_data:

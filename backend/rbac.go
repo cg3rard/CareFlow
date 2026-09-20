@@ -899,15 +899,18 @@ func handleListChatMessages(store *Store) http.HandlerFunc {
 func ensureRoleDemoAccounts(store *Store) error {
 	seeds := []struct{ name, email, password, role string }{{"Careflow Admin", "admin@careflow.local", "AdminCareflow2026!", roleAdmin}, {"Dr. Anya Putri", "psychologist@careflow.local", "Psychologist2026!", rolePsychologist}, {"Careflow Demo", "demo@careflow.local", "CareflowDemo2026!", roleUser}}
 	for _, seed := range seeds {
-		user, ok := store.findUserByEmail(seed.email)
-		if !ok {
+		user, existed := store.findUserByEmail(seed.email)
+		if !existed {
 			var err error
 			user, _, err = store.createUser(Credentials{Name: seed.name, Email: seed.email, Password: seed.password})
 			if err != nil {
 				return err
 			}
 		}
-		if err := store.setUserAccess(user.ID, seed.role, false, "", false); err != nil {
+		if existed && normalizedRole(user.Role) == seed.role {
+			continue
+		}
+		if err := store.setUserAccess(user.ID, seed.role, user.IsBanned, user.PsychologistID, user.ShareDataWithPsychologist); err != nil {
 			return err
 		}
 	}
