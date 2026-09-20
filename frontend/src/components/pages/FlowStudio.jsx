@@ -20,6 +20,7 @@ export default function FlowStudio() {
     saveCurrentSession,
     vaultSavedNotice,
     authUser,
+    brainDumpOutcome,
     setStep,
   } = useFlow();
 
@@ -324,6 +325,36 @@ export default function FlowStudio() {
         <div className="fixed top-24 right-1/2 translate-x-1/2 z-50 bg-[#121214] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-xl animate-float-xp flex items-center gap-2">
           <span>🎉</span>
           <span>{floatingXpText}</span>
+        </div>
+      )}
+
+      {brainDumpOutcome && (
+        <div className="rounded-2xl border border-primary/25 bg-primary-container px-5 py-4 text-on-primary-container shadow-[0_3px_0_#121214]" role="status">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined mt-0.5" aria-hidden="true">{brainDumpOutcome.shared ? 'lock_open' : 'lock'}</span>
+            <div>
+              <p className="text-sm font-bold">Catatan Brain Dump tersimpan</p>
+              <p className="mt-1 text-xs font-medium leading-relaxed">
+                {brainDumpOutcome.shared
+                  ? 'Catatan final ini juga sudah dibagikan ke psikolog yang kamu pilih, sesuai consent data aktif.'
+                  : 'Catatan final ini tersimpan pribadi di akunmu dan belum dibagikan ke psikolog.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setBreathingPattern('free');
+                  setBreathPhaseIndex(0);
+                  setBreathSeconds(3);
+                  setBreathCycle(0);
+                  setIsBreathingActive(true);
+                }}
+                className="mt-3 inline-flex items-center gap-2 rounded-full bg-inverse-surface px-4 py-2 text-xs font-bold text-inverse-on-surface shadow-[0_2px_0_#121214] transition-all hover:opacity-90 active:translate-y-0.5 active:shadow-none"
+              >
+                <span className="material-symbols-outlined text-base" aria-hidden="true">air</span>
+                Mulai grounding napas ±1 menit
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

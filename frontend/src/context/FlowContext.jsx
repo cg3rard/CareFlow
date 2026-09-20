@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { audioEngine } from '../utils/audioEngine';
 import { sliceTaskWithHybridFallback } from '../utils/taskSlicer';
@@ -42,6 +42,16 @@ export function FlowProvider({ children }) {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [guestAllowed, setGuestAllowed] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [consultationModalOpen, setConsultationModalOpen] = useState(false);
+  const [consentChoice, setConsentChoice] = useState(null);
+  const [psychologists, setPsychologists] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatAvailableDates, setChatAvailableDates] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [psychologistClients, setPsychologistClients] = useState([]);
+  const [clientData, setClientData] = useState(null);
+  const [brainDumpOutcome, setBrainDumpOutcome] = useState(null);
+  const chatSocketRef = useRef(null);
 
   const [triageData, setTriageData] = useState({ content: '', tag: 'Tugas Menumpuk 📚', panicLevel: 3 });
   const [activeSound, setActiveSound] = useState(null);
@@ -194,6 +204,21 @@ export function FlowProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (!authUser || !token()) return undefined;
+    const socketUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/chat/ws?token=${encodeURIComponent(token())}`;
+    const socket = new WebSocket(socketUrl);
+    chatSocketRef.current = socket;
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'message' && payload.message) setChatMessages((previous) => previous.some((item) => item.id === payload.message.id) ? previous : [...previous, payload.message]);
+        if (payload.type === 'error') setAuthError(payload.error);
+      } catch { /* Ignore malformed realtime payloads. */ }
+    };
+    return () => { socket.close(); if (chatSocketRef.current === socket) chatSocketRef.current = null; };
+  }, [authUser?.id]);
+
+  useEffect(() => {
     if (!isAuthLoading && (authUser || guestAllowed)) {
       void refreshStoredSessions();
       void refreshTodayMetric();
@@ -264,8 +289,9 @@ export function FlowProvider({ children }) {
     audioEngine.setVolume(nextVolume);
   };
 
-  const processTriage = async (options = {}) => {
-    const { shareWithPsychologist = false } = options;
+  const processTriage = async () => {
+    const shareWithPsychologist = Boolean(authUser?.role === 'user' && authUser?.psychologistId && authUser?.shareDataWithPsychologist);
+    let savedBrainDump = null;
     setIsProcessingSlice(true);
     try {
       const result = await sliceTaskWithHybridFallback(triageData.content, triageData.tag, triageData.panicLevel);
@@ -276,12 +302,17 @@ export function FlowProvider({ children }) {
       }
       if (token()) {
         try {
-          await request('/declutter', {
+          savedBrainDump = await request('/declutter', {
             method: 'POST',
             body: JSON.stringify({ content: triageData.content, tag: triageData.tag, panicLevel: triageData.panicLevel, shareWithPsychologist }),
           });
+          setBrainDumpOutcome({
+            shared: Boolean(savedBrainDump.shareWithPsychologist),
+            createdAt: savedBrainDump.createdAt,
+          });
         } catch {
-          // Cognitive de-clutter logging is best-effort; it must not block the triage flow.
+          setBrainDumpOutcome(null);
+          setAuthError('Langkah ringan siap, tetapi catatanmu belum berhasil disimpan. Coba ulangi setelah koneksi kembali.');
         }
       }
       setStep(2);
@@ -289,6 +320,7 @@ export function FlowProvider({ children }) {
     } finally {
       setIsProcessingSlice(false);
     }
+    return savedBrainDump;
   };
 
   const toggleTaskDone = (taskId) => {
@@ -423,23 +455,98 @@ export function FlowProvider({ children }) {
 
   const resetFlow = () => {
     setTriageData({ content: '', tag: 'Tugas Menumpuk 📚', panicLevel: 3 });
+    setBrainDumpOutcome(null);
     setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
     setTotalXp(0);
     setStep(1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const loadPsychologists = async () => {
+    if (!token()) return;
+    try { const result = await request('/psychologists'); setPsychologists(result.psychologists || []); }
+    catch (error) { setAuthError(error.message); }
+  };
+
+  const openPsychologistFlow = () => {
+    if (!authUser) { startLogin(); return; }
+    if (authUser.role === 'admin') { setStep('admin'); return; }
+    if (authUser.role === 'psychologist') { setStep('psychologist'); return; }
+    setStep(3);
+    setConsultationModalOpen(true);
+  };
+
+  const selectPsychologist = async (psychologistId, shareDataWithPsychologist) => {
+    const profile = await request('/psychologists/select', { method: 'POST', body: JSON.stringify({ psychologistId, shareDataWithPsychologist }) });
+    setAuthUser(profile);
+    setConsentChoice(shareDataWithPsychologist);
+    return profile;
+  };
+  const disconnectPsychologist = async () => {
+    const profile = await request('/psychologists/disconnect', { method: 'POST' });
+    setAuthUser(profile);
+    setChatMessages([]);
+    setConsentChoice(null);
+    return profile;
+  };
+
+  const loadChat = async (withUserId, date = '') => {
+    if (!withUserId) {
+      setChatMessages([]);
+      setChatAvailableDates([]);
+      return;
+    }
+    const query = new URLSearchParams({ withUserId });
+    if (date) query.set('date', date);
+    const result = await request(`/chat/messages?${query.toString()}`);
+    setChatMessages(result.messages || []);
+    setChatAvailableDates(result.availableDates || []);
+  };
+
+  const sendChat = async (recipientId, content) => {
+    if (chatSocketRef.current?.readyState === WebSocket.OPEN) { chatSocketRef.current.send(JSON.stringify({ recipientId, content })); return; }
+    const message = await request('/chat/messages', { method: 'POST', body: JSON.stringify({ recipientId, content }) });
+    setChatMessages((previous) => [...previous, message]);
+    return message;
+  };
+
+  const loadAdminUsers = async () => {
+    try { const result = await request('/admin/users'); setAdminUsers(result.users || []); }
+    catch (error) { setAuthError(error.message); }
+  };
+  const updateAdminUser = async (userId, patch) => {
+    const updated = await request(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    setAdminUsers((previous) => previous.map((user) => user.id === updated.id ? updated : user));
+    return updated;
+  };
+  const createAdminUser = async (input) => {
+    const created = await request('/admin/users', { method: 'POST', body: JSON.stringify(input) });
+    setAdminUsers((previous) => [created, ...previous]);
+    return created;
+  };
+  const loadPsychologistClients = async () => {
+    try { const result = await request('/psychologist/clients'); setPsychologistClients(result.clients || []); }
+    catch (error) { setAuthError(error.message); }
+  };
+  const loadClientData = async (clientId) => {
+    try { const result = await request(`/psychologist/clients/${clientId}`); setClientData(result); }
+    catch (error) { setAuthError(error.message); setClientData(null); }
+  };
+
   const value = useMemo(() => ({
     step, setStep, selectedMood, setSelectedMood, selectedMascot, setSelectedMascot,
     streakDays, streakPopup, dismissStreakPopup: () => setStreakPopup(null), authUser, isAuthLoading, guestAllowed, authError, setAuthError,
     authenticate, continueAsGuest, startLogin, logout,
-    triageData, setTriageData, processTriage, isProcessingSlice,
+    consultationModalOpen, setConsultationModalOpen, consentChoice, setConsentChoice, openPsychologistFlow,
+    psychologists, loadPsychologists, selectPsychologist, disconnectPsychologist, chatMessages, chatAvailableDates, loadChat, sendChat,
+    adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, psychologistClients, loadPsychologistClients, clientData, loadClientData,
+    triageData, setTriageData, processTriage, isProcessingSlice, brainDumpOutcome,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
     quizLoggedToday, todayMetric, weeklyMetrics, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, brainDumpOutcome, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics, consultationModalOpen, consentChoice, psychologists, chatMessages, chatAvailableDates, adminUsers, psychologistClients, clientData]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

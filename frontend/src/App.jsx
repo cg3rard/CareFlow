@@ -4,38 +4,30 @@ import logo from './assets/Logo_careflow.png';
 import GentleTriage from './components/pages/GentleTriage';
 import FlowStudio from './components/pages/FlowStudio';
 import SafeHarbor from './components/pages/SafeHarbor';
+import AdminPanel from './components/pages/AdminPanel';
+import PsychologistPanel from './components/pages/PsychologistPanel';
 import LoginPage from './components/LoginPage';
 import StreakPopup from './components/StreakPopup';
+import ConsultationConsentModal from './components/ConsultationConsentModal';
+import FloatingChat from './components/FloatingChat';
+
+function Footer() {
+  return <footer className="mt-12 w-full border-t border-surface-container bg-surface-container-low py-8"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 lg:flex-row lg:px-12"><div className="flex items-center gap-2.5"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-xs"><img src={logo} alt="Careflow" className="h-full w-full object-contain" /></div><span className="text-base font-bold text-on-surface">Careflow</span></div><span className="text-center text-xs font-medium text-on-surface-variant md:text-right">© 2026 Careflow Space • MindCraft Web Competition 2026</span></div></footer>;
+}
 
 function MainContent() {
-  const { step, isAuthLoading, authUser, guestAllowed, streakPopup, dismissStreakPopup } = useFlow();
-
-  if (isAuthLoading) {
-    return <main className="min-h-screen bg-background flex items-center justify-center text-sm font-bold text-on-surface-variant">Memuat Careflow...</main>;
-  }
+  const { step, isAuthLoading, authUser, guestAllowed, streakPopup, dismissStreakPopup, consultationModalOpen, setConsultationModalOpen, setConsentChoice } = useFlow();
+  if (isAuthLoading) return <main className="flex min-h-screen items-center justify-center bg-background text-sm font-bold text-on-surface-variant">Memuat Careflow...</main>;
   if (!authUser && !guestAllowed) return <LoginPage />;
-
-  return (
-    <>
-      <Navbar />
-      <main className="w-full pt-28 xl:pt-20 bg-background flex-1 overflow-hidden">
-        <div key={step} className="page-stage animate-page-slide-up w-full">
-          {step === 1 && <GentleTriage />}
-          {step === 2 && <FlowStudio />}
-          {step === 3 && <SafeHarbor />}
-        </div>
-      </main>
-      <footer className="w-full bg-surface-container-low mt-12 py-8 border-t border-surface-container">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5"><div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-xs p-1"><img src={logo} alt="Careflow" className="w-full h-full object-contain" /></div><span className="font-bold text-base text-on-surface">Careflow</span></div>
-          <span className="text-xs text-on-surface-variant text-center md:text-right font-medium">© 2026 Careflow Space • MindCraft Web Competition 2026</span>
-        </div>
-      </footer>
-      {streakPopup != null && <StreakPopup streakDays={streakPopup} onDone={dismissStreakPopup} />}
-    </>
-  );
+  const role = authUser?.role;
+  const workspace = role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null;
+  return <>
+    <Navbar />
+    <main className="w-full flex-1 overflow-hidden bg-background pt-28 xl:pt-20"><div key={workspace ? role : step} className="page-stage w-full animate-page-slide-up">{workspace || <>{step === 1 && <GentleTriage />}{step === 2 && <FlowStudio />}{step === 3 && <SafeHarbor />}</>}</div></main>
+    <Footer />
+    <FloatingChat />
+    {streakPopup != null && <StreakPopup streakDays={streakPopup} onDone={dismissStreakPopup} />}
+    {consultationModalOpen && <ConsultationConsentModal onAccept={() => { setConsentChoice(true); setConsultationModalOpen(false); }} onDecline={() => { setConsentChoice(false); setConsultationModalOpen(false); }} onClose={() => setConsultationModalOpen(false)} />}
+  </>;
 }
-
-export default function App() {
-  return <FlowProvider><div className="careflow-app bg-background font-body text-on-surface antialiased min-h-screen flex flex-col"><MainContent /></div></FlowProvider>;
-}
+export default function App() { return <FlowProvider><div className="careflow-app flex min-h-screen flex-col bg-background font-body text-on-surface antialiased"><MainContent /></div></FlowProvider>; }

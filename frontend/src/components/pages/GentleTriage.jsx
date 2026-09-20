@@ -49,7 +49,52 @@ export default function GentleTriage() {
   const [sleepHoursDraft, setSleepHoursDraft] = useState('7');
   const [sleepLogged, setSleepLogged] = useState(false);
   const [metricLogError, setMetricLogError] = useState('');
-  const [shareWithPsychologist, setShareWithPsychologist] = useState(false);
+  const [isBrainDumpDraftReady, setIsBrainDumpDraftReady] = useState(false);
+  const [brainDumpDraftSavedAt, setBrainDumpDraftSavedAt] = useState(null);
+  const brainDumpDraftKey = `careflow_brain_dump_draft_${authUser?.id || 'guest'}`;
+
+  // Keep unfinished thoughts on this device only. The server receives a
+  // final, immutable note only when the user explicitly chooses to unravel it.
+  useEffect(() => {
+    setIsBrainDumpDraftReady(false);
+    try {
+      const rawDraft = localStorage.getItem(brainDumpDraftKey);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (typeof draft?.content === 'string' && draft.content.trim()) {
+          setTriageData((previous) => ({
+            ...previous,
+            content: draft.content,
+            tag: typeof draft.tag === 'string' ? draft.tag : previous.tag,
+            panicLevel: Number.isInteger(draft.panicLevel) ? draft.panicLevel : previous.panicLevel,
+          }));
+        }
+      }
+    } catch {
+      localStorage.removeItem(brainDumpDraftKey);
+    } finally {
+      setIsBrainDumpDraftReady(true);
+    }
+  }, [brainDumpDraftKey, setTriageData]);
+
+  useEffect(() => {
+    if (!isBrainDumpDraftReady) return undefined;
+    const timeout = window.setTimeout(() => {
+      try {
+        if (triageData.content.trim()) {
+          localStorage.setItem(brainDumpDraftKey, JSON.stringify({
+            content: triageData.content,
+            tag: triageData.tag,
+            panicLevel: triageData.panicLevel,
+          }));
+          setBrainDumpDraftSavedAt(new Date());
+        }
+      } catch {
+        // Draft persistence is optional; typing must remain uninterrupted.
+      }
+    }, 650);
+    return () => window.clearTimeout(timeout);
+  }, [brainDumpDraftKey, isBrainDumpDraftReady, triageData]);
 
   // The quiz (sleep check-in + Yes/No questions) is limited to one
   // completion per calendar day. Hydrate local state from the server so a
@@ -300,6 +345,23 @@ export default function GentleTriage() {
 
   const activeMascotObj = mascots.find((m) => m.id === selectedMascot) || mascots[0];
   const isGuest = !authUser;
+  const brainDumpShareActive = Boolean(authUser?.role === 'user' && authUser?.psychologistId && authUser?.shareDataWithPsychologist);
+  const brainDumpPrivacyCopy = brainDumpShareActive
+    ? `Saat diurai, catatan final tersimpan dan dibagikan ke ${authUser.psychologistName || 'konsultanmu'}.`
+    : authUser?.psychologistId
+      ? 'Saat diurai, catatan final tersimpan pribadi. Data sharing belum aktif.'
+      : authUser
+        ? 'Saat diurai, catatan final tersimpan pribadi. Hubungkan konsultan untuk membagikannya.'
+        : 'Draft tersimpan di perangkat ini. Masuk untuk menyimpan catatan final ke akunmu.';
+
+  const handleBrainDumpSubmit = async () => {
+    const savedEntry = await processTriage();
+    if (savedEntry) {
+      localStorage.removeItem(brainDumpDraftKey);
+      setTriageData((previous) => ({ ...previous, content: '' }));
+      setBrainDumpDraftSavedAt(null);
+    }
+  };
 
   // Cognitive Overwhelm Meter calculation
 
@@ -915,24 +977,22 @@ export default function GentleTriage() {
                 </div>
               </div>
 
-              {/* Optional consent to share this entry with a professional psychologist */}
-              <label className="mt-3 flex items-start gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={shareWithPsychologist}
-                  onChange={(e) => setShareWithPsychologist(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded accent-primary cursor-pointer"
-                />
-                <span className="text-xs text-on-surface-variant font-medium leading-relaxed">
-                  Kirim teks ini ke psikolog profesional untuk ditinjau lebih lanjut.
+              <div className={`mt-3 flex gap-3 rounded-2xl p-3 ${brainDumpShareActive ? 'bg-tertiary-container text-on-tertiary-container' : 'bg-surface-container text-on-surface'}`} aria-live="polite">
+                <span className="material-symbols-outlined mt-0.5 text-[20px]" aria-hidden="true">
+                  {brainDumpShareActive ? 'lock_open' : 'lock'}
                 </span>
-              </label>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold">{brainDumpDraftSavedAt ? 'Draft tersimpan otomatis di perangkat ini' : 'Draft pribadi siap ditulis'}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed opacity-85">{brainDumpPrivacyCopy}</p>
+                </div>
+              </div>
+
             </div>
 
             <div className="mt-6">
               <button
                 type="button"
-                onClick={() => processTriage({ shareWithPsychologist })}
+                onClick={handleBrainDumpSubmit}
                 disabled={isProcessingSlice}
                 className="w-full flex items-center justify-center gap-2 bg-inverse-surface text-inverse-on-surface py-4 rounded-full font-bold text-sm shadow-[0_4px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:opacity-75"
               >

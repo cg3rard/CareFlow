@@ -85,6 +85,44 @@ func (s *Store) migratePostgres(ctx context.Context) error {
 			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 		CREATE INDEX IF NOT EXISTS task_completions_user_completed_at_idx ON task_completions (user_id, completed_at DESC);
+		CREATE TABLE IF NOT EXISTS community_posts (
+			id            TEXT PRIMARY KEY,
+			author_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			is_anonymous  BOOLEAN NOT NULL DEFAULT FALSE,
+			topic_tag     TEXT NOT NULL DEFAULT 'umum',
+			body          TEXT NOT NULL,
+			media_mime    TEXT,
+			media_data    TEXT,
+			media_bytes   INTEGER NOT NULL DEFAULT 0,
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts (created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_community_posts_author ON community_posts (author_id, created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_community_posts_named_author ON community_posts (author_id, created_at DESC) WHERE is_anonymous = FALSE;
+		CREATE TABLE IF NOT EXISTS community_comments (
+			id         TEXT PRIMARY KEY,
+			post_id    TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+			author_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			body       TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments (post_id, created_at ASC);
+		CREATE INDEX IF NOT EXISTS idx_community_comments_author ON community_comments (author_id, created_at DESC);
+		CREATE TABLE IF NOT EXISTS community_reactions (
+			id         TEXT PRIMARY KEY,
+			post_id    TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (post_id, user_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_community_reactions_post ON community_reactions (post_id);
+		CREATE TABLE IF NOT EXISTS community_shares (
+			id         TEXT PRIMARY KEY,
+			post_id    TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_community_shares_post ON community_shares (post_id);
 	`)
 	if err != nil {
 		return fmt.Errorf("migrate PostgreSQL: %w", err)

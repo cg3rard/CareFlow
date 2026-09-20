@@ -67,12 +67,16 @@ type EmergencyResource struct {
 }
 
 type User struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"passwordHash"`
-	DateOfBirth  *string   `json:"dateOfBirth,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID                        string    `json:"id"`
+	Name                      string    `json:"name"`
+	Email                     string    `json:"email"`
+	PasswordHash              string    `json:"passwordHash"`
+	DateOfBirth               *string   `json:"dateOfBirth,omitempty"`
+	Role                      string    `json:"role"`
+	IsBanned                  bool      `json:"isBanned"`
+	PsychologistID            string    `json:"psychologistId,omitempty"`
+	ShareDataWithPsychologist bool      `json:"shareDataWithPsychologist"`
+	CreatedAt                 time.Time `json:"createdAt"`
 }
 
 type SessionRecord struct {
@@ -121,22 +125,24 @@ type TaskCompletion struct {
 }
 
 type persistedData struct {
-	Users            []User           `json:"users"`
-	Sessions         []SessionRecord  `json:"sessions"`
-	DailyMetrics     []DailyMetric    `json:"dailyMetrics"`
-	DeclutterEntries []DeclutterEntry `json:"declutterEntries"`
+	Users              []User              `json:"users"`
+	Sessions           []SessionRecord     `json:"sessions"`
+	DailyMetrics       []DailyMetric       `json:"dailyMetrics"`
+	DeclutterEntries   []DeclutterEntry    `json:"declutterEntries"`
 	TaskCompletions  []TaskCompletion `json:"taskCompletions"`
+	ChatMessages     []ChatMessage    `json:"chatMessages"`
 }
 
 type Store struct {
-	mu               sync.RWMutex
-	path             string
-	db               *sql.DB
-	users            []User
-	sessions         []SessionRecord
-	dailyMetrics     []DailyMetric
-	declutterEntries []DeclutterEntry
+	mu                 sync.RWMutex
+	path               string
+	db                 *sql.DB
+	users              []User
+	sessions           []SessionRecord
+	dailyMetrics       []DailyMetric
+	declutterEntries   []DeclutterEntry
 	taskCompletions  []TaskCompletion
+	chatMessages     []ChatMessage
 	tokens           map[string]string
 }
 
@@ -177,13 +183,18 @@ type TaskCompletionInput struct {
 }
 
 type ProfileResponse struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Email       string          `json:"email"`
-	DateOfBirth *string         `json:"dateOfBirth,omitempty"`
-	StreakDays  int             `json:"streakDays"`
-	LifetimeXP  int             `json:"lifetimeXp"`
-	Sessions    []SessionRecord `json:"sessions,omitempty"`
+	ID                        string          `json:"id"`
+	Name                      string          `json:"name"`
+	Email                     string          `json:"email"`
+	DateOfBirth               *string         `json:"dateOfBirth,omitempty"`
+	Role                      string          `json:"role"`
+	IsBanned                  bool            `json:"isBanned"`
+	PsychologistID            string          `json:"psychologistId,omitempty"`
+	PsychologistName          string          `json:"psychologistName,omitempty"`
+	ShareDataWithPsychologist bool            `json:"shareDataWithPsychologist"`
+	StreakDays                int             `json:"streakDays"`
+	LifetimeXP                int             `json:"lifetimeXp"`
+	Sessions                  []SessionRecord `json:"sessions,omitempty"`
 }
 
 func main() {
@@ -212,11 +223,18 @@ func main() {
 		log.Fatalf("[Careflow Core] storage initialization failed: %v", err)
 	}
 	defer store.close()
+	if err := store.ensureRoleSupport(); err != nil {
+		log.Fatalf("[Careflow Core] RBAC storage initialization failed: %v", err)
+	}
 	if err := ensureDemoAccount(store, cfg); err != nil {
 		log.Fatalf("[Careflow Core] demo account initialization failed: %v", err)
 	}
+	if err := ensureRoleDemoAccounts(store); err != nil {
+		log.Fatalf("[Careflow Core] role demo initialization failed: %v", err)
+	}
 
 	mux := http.NewServeMux()
+	chatHub := newChatHub()
 	mux.HandleFunc("GET /api/health", handleHealth)
 	mux.HandleFunc("GET /api/emergency/resources", handleEmergencyResources)
 	mux.HandleFunc("POST /api/slice", handleTaskSlice(cfg))
@@ -232,6 +250,17 @@ func main() {
 	mux.HandleFunc("GET /api/declutter", handleListDeclutterEntries(store))
 	mux.HandleFunc("POST /api/task-completions", handleCreateTaskCompletion(store))
 	mux.HandleFunc("GET /api/task-completions", handleListTaskCompletions(store))
+	mux.HandleFunc("GET /api/psychologists", handleListPsychologists(store))
+	mux.HandleFunc("POST /api/psychologists/select", handleSelectPsychologist(store))
+	mux.HandleFunc("POST /api/psychologists/disconnect", handleDisconnectPsychologist(store))
+	mux.HandleFunc("GET /api/psychologist/clients", handlePsychologistClients(store))
+	mux.HandleFunc("GET /api/psychologist/clients/{id}", handlePsychologistClientData(store))
+	mux.HandleFunc("GET /api/admin/users", handleAdminUsers(store))
+	mux.HandleFunc("POST /api/admin/users", handleAdminCreateUser(store))
+	mux.HandleFunc("PATCH /api/admin/users/{id}", handleAdminUserUpdate(store))
+	mux.HandleFunc("POST /api/chat/messages", handleCreateChatMessage(store))
+	mux.HandleFunc("GET /api/chat/messages", handleListChatMessages(store))
+	mux.HandleFunc("GET /api/chat/ws", handleChatWebSocket(store, chatHub, cfg.FrontendOrigin))
 
 	serverAddr := ":" + cfg.Port
 	log.Printf("[Careflow Core] listening on %s (%s)", serverAddr, cfg.AppEnv)
@@ -267,6 +296,7 @@ func newStore(path string) (*Store, error) {
 	store.dailyMetrics = data.DailyMetrics
 	store.declutterEntries = data.DeclutterEntries
 	store.taskCompletions = data.TaskCompletions
+	store.chatMessages = data.ChatMessages
 	return store, nil
 }
 
@@ -274,7 +304,7 @@ func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return err
 	}
-	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries, TaskCompletions: s.taskCompletions}, "", "  ")
+	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries, TaskCompletions: s.taskCompletions, ChatMessages: s.chatMessages}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -682,6 +712,7 @@ func handleRegister(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		store.hydrateAccess(&user)
 		writeJSON(w, http.StatusCreated, authResponse(user, token, 0, 0))
 	}
 }
@@ -695,6 +726,12 @@ func handleLogin(store *Store) http.HandlerFunc {
 		user, token, err := store.login(input.Email, input.Password)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		store.hydrateAccess(&user)
+		if user.IsBanned {
+			store.revokeToken(token)
+			writeError(w, http.StatusForbidden, "akun ini diblokir oleh admin")
 			return
 		}
 		writeJSON(w, http.StatusOK, authResponse(user, token, calculateStreak(store.sessionsForUser(user.ID)), store.lifetimeXPForUser(user.ID)))
@@ -797,6 +834,9 @@ func handleCreateDeclutterEntry(store *Store) http.HandlerFunc {
 		if err := decodeJSON(w, r, &input); err != nil {
 			return
 		}
+		// The backend, not the browser, decides whether this final note is
+		// shared. An assigned psychologist can see it only with saved consent.
+		input.ShareWithPsychologist = user.PsychologistID != "" && user.ShareDataWithPsychologist
 		entry, err := store.addDeclutterEntry(user.ID, input)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -855,7 +895,7 @@ func authResponse(user User, token string, streak int, lifetimeXP int) map[strin
 }
 
 func profileResponse(user User, records []SessionRecord, includeSessions bool, lifetimeXP int) ProfileResponse {
-	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, DateOfBirth: user.DateOfBirth, StreakDays: calculateStreak(records), LifetimeXP: lifetimeXP}
+	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, DateOfBirth: user.DateOfBirth, Role: normalizedRole(user.Role), IsBanned: user.IsBanned, PsychologistID: user.PsychologistID, ShareDataWithPsychologist: user.ShareDataWithPsychologist, StreakDays: calculateStreak(records), LifetimeXP: lifetimeXP}
 	if includeSessions {
 		response.Sessions = records
 	}
@@ -869,7 +909,14 @@ func authenticatedUser(r *http.Request, store *Store) (string, User, bool) {
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 	user, ok := store.userForToken(token)
-	return token, user, ok
+	if !ok {
+		return token, User{}, false
+	}
+	store.hydrateAccess(&user)
+	if user.IsBanned {
+		return token, User{}, false
+	}
+	return token, user, true
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -1014,7 +1061,7 @@ func enableCORS(next http.Handler, allowedOrigin string) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")

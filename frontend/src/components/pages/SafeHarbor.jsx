@@ -1,404 +1,61 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
 
+const moodMap = {
+  Happy: {
+    bg: 'bg-primary-container', text: 'text-primary', icon: 'sentiment_very_satisfied',
+    summary: { label: 'Happy: Hijau · energi positif', emoji: '🌿', container: 'bg-primary-container', eyebrow: 'bg-surface-container-lowest/80 text-on-primary-container', heading: 'text-on-surface', copy: 'text-on-surface', face: 'text-[#1f2c20]', metric: 'bg-surface-container-lowest/90', metricLabel: 'text-on-surface-variant', metricValue: 'text-on-surface', metricNote: 'text-primary' },
+  },
+  Angry: {
+    bg: 'bg-error-container', text: 'text-error', icon: 'sentiment_very_dissatisfied',
+    summary: { label: 'Angry: Merah · beri ruang untuk tenang', emoji: '🔥', container: 'bg-error-container', eyebrow: 'bg-surface-container-lowest/80 text-on-error-container', heading: 'text-on-error-container', copy: 'text-on-error-container', face: 'text-error', metric: 'bg-surface-container-lowest/90', metricLabel: 'text-on-surface-variant', metricValue: 'text-on-surface', metricNote: 'text-error' },
+  },
+  Sleepy: {
+    bg: 'bg-[#cde5ff]', text: 'text-[#1b3d63]', icon: 'bedtime',
+    summary: { label: 'Sleepy: Biru malam · waktunya memulihkan energi', emoji: '🌙', container: 'bg-[#24324a]', eyebrow: 'bg-white/15 text-white', heading: 'text-white', copy: 'text-white/85', face: 'text-[#dbeafe]', metric: 'bg-white/10', metricLabel: 'text-white/65', metricValue: 'text-white', metricNote: 'text-[#b9d5ff]' },
+  },
+  Bored: {
+    bg: 'bg-tertiary-container', text: 'text-tertiary', icon: 'sentiment_neutral',
+    summary: { label: 'Bored: Ungu lembut · coba sesuatu yang baru', emoji: '✨', container: 'bg-tertiary-container', eyebrow: 'bg-surface-container-lowest/80 text-on-tertiary-container', heading: 'text-on-surface', copy: 'text-on-surface', face: 'text-tertiary', metric: 'bg-surface-container-lowest/90', metricLabel: 'text-on-surface-variant', metricValue: 'text-on-surface', metricNote: 'text-tertiary' },
+  },
+};
+const moodStyle = (mood) => moodMap[mood] || moodMap.Happy;
+const moodSummary = (mood) => moodStyle(mood).summary;
+
 export default function SafeHarbor() {
-  const {
-    selectedMood,
-    streakDays,
-    authUser,
-    vaultEntries,
-    weeklyMetrics,
-    saveCurrentSession,
-    vaultSavedNotice,
-    resetFlow,
-  } = useFlow();
-
-  // Interactive Day Modal State
-  const [selectedDayDetail, setSelectedDayDetail] = useState(null);
-
-  const MOOD_STYLES = {
-    Happy: { bg: 'bg-primary-container', textColor: 'text-primary', label: 'Happy' },
-    Excited: { bg: 'bg-[#ffeb99]', textColor: 'text-[#634e00]', label: 'Excited' },
-    Sleepy: { bg: 'bg-[#cde5ff]', textColor: 'text-[#1b3d63]', label: 'Sleepy' },
-    Bored: { bg: 'bg-[#ffd8e7]', textColor: 'text-[#6b254a]', label: 'Bored' },
-    Angry: { bg: 'bg-[#fec5a7]', textColor: 'text-[#7a5038]', label: 'Angry' },
-  };
-  const getMoodStyle = (mood) => MOOD_STYLES[mood] || MOOD_STYLES.Happy;
-
-  // The calendar shows September 2026 (the app's current month), built from
-  // real Daily Pulse mood entries (vaultEntries) instead of hardcoded data.
-  const CALENDAR_YEAR = 2026;
-  const CALENDAR_MONTH = 8; // 0-indexed: August=7, September=8
-  const monthMoodByDay = (() => {
-    const byDay = new Map();
-    vaultEntries.forEach((entry) => {
-      const entryDate = entry.createdAt ? new Date(entry.createdAt) : (entry.date ? new Date(entry.date) : null);
-      if (!entryDate || Number.isNaN(entryDate.getTime())) return;
-      if (entryDate.getFullYear() !== CALENDAR_YEAR || entryDate.getMonth() !== CALENDAR_MONTH) return;
-      const day = entryDate.getDate();
-      // Last entry recorded for a given day wins (most recent mood that day).
-      byDay.set(day, { mood: entry.mood, entry });
-    });
-    return byDay;
-  })();
-  const moodCountsThisMonth = (() => {
-    const counts = {};
-    monthMoodByDay.forEach(({ mood }) => {
-      const label = getMoodStyle(mood).label;
-      counts[label] = (counts[label] || 0) + 1;
-    });
-    return counts;
-  })();
-
-  // Monthly Mood Summary: real sleep duration & stress level averages for
-  // the current month (from weeklyMetrics, which now covers up to 30 days),
-  // plus the real current streak — replacing the old hardcoded
-  // Activity/Therapy/Discipline metrics.
-  const monthlySleepSamples = weeklyMetrics.filter((m) => m.sleepHours != null).map((m) => m.sleepHours);
-  const monthlyAverageSleep = monthlySleepSamples.length > 0
-    ? Math.round((monthlySleepSamples.reduce((sum, v) => sum + v, 0) / monthlySleepSamples.length) * 10) / 10
-    : null;
-  const monthlyStressSamples = weeklyMetrics.filter((m) => m.stressScore != null).map((m) => m.stressScore);
-  const monthlyAverageStress = monthlyStressSamples.length > 0
-    ? Math.round(monthlyStressSamples.reduce((sum, v) => sum + v, 0) / monthlyStressSamples.length)
-    : null;
-  const stressLevelText = monthlyAverageStress == null ? '—' : monthlyAverageStress >= 70 ? 'Tinggi' : monthlyAverageStress >= 40 ? 'Sedang' : 'Ringan';
-
-  const openDay = (day, moodEntry) => {
-    const style = getMoodStyle(moodEntry?.mood);
-    setSelectedDayDetail({
-      day,
-      title: moodEntry ? `Mood tercatat: ${style.label}` : 'Belum ada catatan mood',
-      mood: moodEntry?.mood || null,
-      color: style.bg,
-      entry: moodEntry?.entry || null,
-    });
-  };
-
-  return (
-    <div className="flex flex-col w-full pb-20">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10">
-        {/* Hero Title Header with Playful Badge */}
-        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 mb-8 sm:mb-12">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 bg-primary-container px-4 py-1.5 rounded-full shadow-[0_4px_0_#121214]">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
-              <span className="text-xs text-on-primary-container uppercase tracking-widest font-bold">
-                Sesi Selesai • Mood Garden Sync
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-5xl font-bold text-on-surface tracking-tight">
-              Pikiranmu Plong Lagi! 🎉
-            </h1>
-            <p className="text-sm sm:text-base text-on-surface-variant max-w-xl font-medium">
-              Lihat kemajuan emosional, kalender mood harian, dan ringkasan pemulihan pikiranmu secara transparan dan aman.
-            </p>
-          </div>
-
-          {/* Quick Mood Stats Pill Strip */}
-          <div className="flex items-center gap-2 bg-surface-container-lowest p-1.5 rounded-full shadow-[0_4px_0_#121214] self-stretch sm:self-auto justify-center">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">
-              <span className="material-symbols-outlined text-[16px]">local_fire_department</span>
-              <span>{streakDays > 0 ? `${streakDays} Hari Beruntun` : 'Mulai streak hari ini'}</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-tertiary-container text-on-tertiary-container text-xs font-bold">
-              <span className="material-symbols-outlined text-[16px]">verified</span>
-              <span>Level 4 Calmmate</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Two-Column Bento Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* ========================================================
-              LEFT COLUMN: Calendar, Monthly Hero & Vault (7 cols)
-             ======================================================== */}
-          <div className="lg:col-span-7 flex flex-col gap-8">
-            {/* 1. Monthly Mood Summary Hero Bento Card */}
-            <div className="relative overflow-hidden rounded-[2rem] bg-primary-container p-6 sm:p-8 shadow-[0_6px_0_#121214] transition-transform hover:-translate-y-1">
-              {/* Geometric playful character illustration right corner */}
-              <div className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 select-none pointer-events-none opacity-90 hidden sm:block">
-                <svg fill="none" height="120" viewBox="0 0 150 120" width="150">
-                  <path d="M22 42C26 30 40 28 48 40" stroke="#121214" strokeLinecap="round" strokeWidth="7"></path>
-                  <path d="M102 42C106 30 120 28 128 40" stroke="#121214" strokeLinecap="round" strokeWidth="7"></path>
-                  <path d="M40 76C55 104 95 104 110 76" stroke="#121214" strokeLinecap="round" strokeWidth="8"></path>
-                  <circle cx="16" cy="65" fill="#fec5a7" opacity="0.85" r="10"></circle>
-                  <circle cx="134" cy="65" fill="#fec5a7" opacity="0.85" r="10"></circle>
-                </svg>
-              </div>
-
-              <div className="relative z-10 max-w-md">
-                <span className="text-xs uppercase tracking-wider text-on-primary-container bg-surface-container-lowest/80 px-3 py-1 rounded-full inline-block mb-2 font-bold shadow-[0_2px_0_#121214]">
-                  Monthly Mood Summary • September 2026
-                </span>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-3xl sm:text-5xl font-bold text-on-surface tracking-tight">
-                    {selectedMood} 🌿
-                  </h2>
-                </div>
-                <p className="text-sm sm:text-base text-on-surface mt-2 font-medium leading-relaxed">
-                  Ringkasan tidur, tingkat stres, dan streak-mu bulan ini, berdasarkan data yang kamu isi sendiri di Daily Pulse.
-                </p>
-
-                {/* 3 Micro Metric Cards: real Sleep Duration, Stress Level, and Streak */}
-                <div className="grid grid-cols-3 gap-3 mt-6 pt-1">
-                  <div className="bg-surface-container-lowest/90 p-3.5 rounded-2xl shadow-[0_3px_0_#121214] flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer">
-                    <span className="text-[10px] text-on-surface-variant uppercase font-bold">Sleep Duration</span>
-                    <span className="text-base sm:text-lg font-bold text-on-surface mt-1">{monthlyAverageSleep != null ? `${monthlyAverageSleep} jam` : '—'}</span>
-                    <span className="text-xs text-primary font-semibold">Rata-rata 😴</span>
-                  </div>
-                  <div className="bg-surface-container-lowest/90 p-3.5 rounded-2xl shadow-[0_3px_0_#121214] flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer">
-                    <span className="text-[10px] text-on-surface-variant uppercase font-bold">Stress Level</span>
-                    <span className="text-base sm:text-lg font-bold text-on-surface mt-1">{monthlyAverageStress != null ? monthlyAverageStress : '—'}</span>
-                    <span className="text-xs text-secondary font-semibold">{stressLevelText} 🧠</span>
-                  </div>
-                  <div className="bg-surface-container-lowest/90 p-3.5 rounded-2xl shadow-[0_3px_0_#121214] flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer">
-                    <span className="text-[10px] text-on-surface-variant uppercase font-bold">Streak</span>
-                    <span className="text-base sm:text-lg font-bold text-on-surface mt-1">{streakDays} hari</span>
-                    <span className="text-xs text-tertiary font-semibold">Beruntun 🔥</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Mood Calendar Bento Block (Authentic 7-Column Emoji Matrix) */}
-            <div className="relative rounded-[2rem] bg-surface-container-lowest p-6 sm:p-8 shadow-[0_6px_0_#121214] space-y-4 border border-surface-container overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">calendar_month</span>
-                    <h3 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">Mood Calendar</h3>
-                  </div>
-                  <p className="text-xs text-on-surface-variant font-medium">September 2026 • Klik tanggal untuk lihat detail!</p>
-                </div>
-                <div className="flex items-center gap-1.5 bg-surface-container-low p-1 rounded-full shadow-[0_2px_0_#121214]">
-                  <button className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center hover:bg-surface transition-colors cursor-not-allowed opacity-50" title="Bulan Sebelumnya" disabled>
-                    <span className="material-symbols-outlined text-on-surface text-[18px]">chevron_left</span>
-                  </button>
-                  <span className="text-xs font-bold text-on-surface px-2">Sep 2026</span>
-                  <button className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center hover:bg-surface transition-colors cursor-not-allowed opacity-50" title="Bulan Berikutnya" disabled>
-                    <span className="material-symbols-outlined text-on-surface text-[18px]">chevron_right</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Day Headers */}
-              <div className="grid grid-cols-7 text-center text-xs text-on-surface-variant font-bold pb-1">
-                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-              </div>
-
-              {/* Calendar Tile Grid built from real Daily Pulse mood entries (vaultEntries) */}
-              <div className="grid grid-cols-7 gap-2">
-                {(() => {
-                  const firstWeekday = new Date(CALENDAR_YEAR, CALENDAR_MONTH, 1).getDay();
-                  const daysInMonth = new Date(CALENDAR_YEAR, CALENDAR_MONTH + 1, 0).getDate();
-                  const todayReal = new Date();
-                  const isCurrentMonth = todayReal.getFullYear() === CALENDAR_YEAR && todayReal.getMonth() === CALENDAR_MONTH;
-                  const todayDate = isCurrentMonth ? todayReal.getDate() : null;
-                  const cells = [];
-                  for (let i = 0; i < firstWeekday; i++) cells.push(null);
-                  for (let day = 1; day <= daysInMonth; day++) cells.push(day);
-
-                  return cells.map((day, index) => {
-                    if (day == null) {
-                      return (
-                        <div key={`empty-${index}`} className="aspect-square rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface-variant/40 text-xs font-bold opacity-60">
-                          <span>—</span>
-                        </div>
-                      );
-                    }
-                    const moodData = monthMoodByDay.get(day);
-                    const style = getMoodStyle(moodData?.mood);
-                    const isToday = day === todayDate;
-                    return (
-                      <div
-                        key={day}
-                        onClick={() => openDay(day, moodData)}
-                        className={`group aspect-square rounded-xl flex flex-col items-center justify-center shadow-[0_2px_0_#121214] hover:scale-110 active:scale-95 transition-transform cursor-pointer ${
-                          moodData ? style.bg : 'bg-surface-container-low'
-                        } ${isToday ? 'ring-3 ring-[#121214]' : ''}`}
-                        title={`${day} Sep${isToday ? ' (Hari ini)' : ''}: ${moodData ? `Mood ${style.label}` : 'Belum ada catatan'}`}
-                      >
-                        {moodData ? (
-                          <span className="material-symbols-outlined text-[18px]" style={{ color: '#121214' }}>
-                            {moodData.mood === 'Happy' ? 'sentiment_very_satisfied'
-                              : moodData.mood === 'Angry' ? 'sentiment_very_dissatisfied'
-                              : moodData.mood === 'Sleepy' ? 'bedtime'
-                              : moodData.mood === 'Bored' ? 'sentiment_neutral'
-                              : 'mood'}
-                          </span>
-                        ) : (
-                          <span className="text-on-surface-variant/50 text-xs">·</span>
-                        )}
-                        <span className={`text-[9px] font-bold ${moodData ? style.textColor : 'text-on-surface-variant/50'}`}>{day}</span>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
-              {/* Color Mood Legend: real counts from this month's Daily Pulse entries */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-surface-container text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-primary-container border border-[#121214]/20"></span>
-                  <span className="text-on-surface font-medium">Happy ({moodCountsThisMonth.Happy || 0})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-[#fec5a7] border border-[#121214]/20"></span>
-                  <span className="text-on-surface font-medium">Angry ({moodCountsThisMonth.Angry || 0})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-[#cde5ff] border border-[#121214]/20"></span>
-                  <span className="text-on-surface font-medium">Sleepy ({moodCountsThisMonth.Sleepy || 0})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-[#ffd8e7] border border-[#121214]/20"></span>
-                  <span className="text-on-surface font-medium">Bored ({moodCountsThisMonth.Bored || 0})</span>
-                </div>
-              </div>
-
-              {/* Interactive Day Details Popup — contained within Mood Calendar */}
-              {selectedDayDetail && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn rounded-[2rem]">
-                  <div className="relative w-full max-w-md bg-white rounded-[2rem] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.2)] border-2 border-[#121214] space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                        Detail Catatan Kalender
-                      </span>
-                      <button
-                        onClick={() => setSelectedDayDetail(null)}
-                        className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 font-bold"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className={`w-14 h-14 rounded-2xl ${selectedDayDetail.color} flex items-center justify-center shadow-[0_2px_0_#121214]`}>
-                        <span className="text-2xl font-bold">{selectedDayDetail.day}</span>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-on-surface">{selectedDayDetail.title}</h3>
-                        <span className="text-xs font-semibold text-primary">Status: {selectedDayDetail.mood}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setSelectedDayDetail(null)}
-                      className="w-full py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all"
-                    >
-                      Tutup Catatan
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ========================================================
-              RIGHT COLUMN: Safe Harbor Real Support & Visual Companion (5 cols)
-             ======================================================== */}
-          <div className="lg:col-span-5 flex flex-col gap-8">
-
-            {/* Safe Harbor Support Header Card */}
-            <div className="rounded-[2rem] bg-surface-container-lowest p-6 sm:p-8 shadow-[0_6px_0_#121214] space-y-4 border border-surface-container">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shadow-[0_2px_0_#121214]">
-                  <span className="material-symbols-outlined text-on-secondary-container text-[22px]">
-                    support_agent
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-on-surface tracking-tight">Safe Harbor</h3>
-                  <p className="text-xs text-on-surface-variant font-medium">Teman Bicara &amp; Bantuan Nyata</p>
-                </div>
-              </div>
-
-              <p className="text-xs sm:text-sm text-on-surface leading-relaxed font-medium">
-                Ketika latihan regulasi mandiri terasa belum cukup, ada telinga yang siap mendengar tanpa menghakimi. Semua kontak di bawah terverifikasi dan aman.
-              </p>
-
-              {/* Support Card 1: Kampus Konseling */}
-              <div className="rounded-2xl bg-surface-container-low p-4 shadow-[0_3px_0_#121214] space-y-2 transition-transform hover:-translate-y-0.5 border border-surface-container">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-on-surface">Konseling Kampus (UNJANI &amp; UI)</span>
-                  <span className="text-[10px] bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full font-bold shadow-xs">
-                    GRATIS / Bebas Biaya
-                  </span>
-                </div>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  Layanan psikolog klinis &amp; konseling sebaya khusus sivitas akademika mahasiswa.
-                </p>
-                <div className="pt-1">
-                  <a
-                    href="https://wa.me/628111925565"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#121214] text-surface-container-lowest text-xs font-bold hover:bg-inverse-surface active:translate-y-0.5 transition-all shadow-[0_2px_0_#121214]"
-                  >
-                    <span>Hubungi Konselor Kampus</span>
-                    <span>💬</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Support Card 2: Hotline Nasional SEJIWA 119 Ext 8 */}
-              <div className="rounded-2xl bg-secondary-fixed/50 p-4 shadow-[0_3px_0_#121214] space-y-2 transition-transform hover:-translate-y-0.5 border border-secondary/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-on-surface">Hotline Nasional SEJIWA 119</span>
-                  <span className="text-[10px] bg-secondary text-on-secondary px-2 py-0.5 rounded-full font-bold shadow-xs">
-                    24 Jam Siaga
-                  </span>
-                </div>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  Hotline kesehatan jiwa nasional resmi Kementerian Kesehatan RI untuk krisis darurat &amp; pertolongan pertama emosi.
-                </p>
-                <div className="pt-1">
-                  <a
-                    href="tel:119"
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#121214] text-surface-container-lowest text-xs font-bold hover:bg-inverse-surface active:translate-y-0.5 transition-all shadow-[0_2px_0_#121214]"
-                  >
-                    <span>Panggil Bebas Pulsa (Ext 8)</span>
-                    <span>📞</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Support Card 3: LISA Crisis Chat */}
-              <div className="rounded-2xl bg-tertiary-container/60 p-4 shadow-[0_3px_0_#121214] space-y-2 transition-transform hover:-translate-y-0.5 border border-tertiary/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-on-surface">LISA Suicide Prevention Chat</span>
-                  <span className="text-[10px] bg-tertiary text-on-tertiary px-2 py-0.5 rounded-full font-bold shadow-xs">
-                    Bilingual (ID/EN)
-                  </span>
-                </div>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  Love Inside Suicide Awareness. Konseling krisis teks langsung melalui WhatsApp untuk dukungan segera.
-                </p>
-                <div className="pt-1">
-                  <a
-                    href="https://wa.me/628113855472"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#121214] text-surface-container-lowest text-xs font-bold hover:bg-inverse-surface active:translate-y-0.5 transition-all shadow-[0_2px_0_#121214]"
-                  >
-                    <span>Chat WhatsApp LISA</span>
-                    <span>💬</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Friendly Disclaimer */}
-              <div className="rounded-2xl bg-surface-container-low p-3 flex items-start gap-2 shadow-xs">
-                <span className="text-secondary text-sm">❤️</span>
-                <p className="text-[11px] text-on-surface-variant leading-relaxed font-medium">
-                  <strong>Careflow</strong> adalah sahabat regulasi mandirimu. Jangan ragu menghubungi tenaga profesional berwenang jika hatimu butuh teman bercerita lebih dalam.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const { selectedMood, streakDays, authUser, vaultEntries, weeklyMetrics, psychologists, loadPsychologists, selectPsychologist, disconnectPsychologist, consentChoice, authError } = useFlow();
+  const [activeDay, setActiveDay] = useState(null); const [isSelecting, setIsSelecting] = useState(false); const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const selectedConsultant = psychologists.find((item) => item.id === authUser?.psychologistId);
+  const calendarMonth = useMemo(() => new Date(2026, 8, 1), []);
+  const monthMood = useMemo(() => {
+    const result = new Map();
+    vaultEntries.forEach((entry) => { const date = new Date(entry.createdAt || entry.timestamp); if (!Number.isNaN(date.getTime()) && date.getFullYear() === 2026 && date.getMonth() === 8) result.set(date.getDate(), entry); });
+    return result;
+  }, [vaultEntries]);
+  const counts = useMemo(() => ['Happy', 'Angry', 'Sleepy', 'Bored'].reduce((all, mood) => ({ ...all, [mood]: [...monthMood.values()].filter((entry) => entry.mood === mood).length }), {}), [monthMood]);
+  const sleep = weeklyMetrics.filter((item) => item.sleepHours != null).map((item) => item.sleepHours); const stress = weeklyMetrics.filter((item) => item.stressScore != null).map((item) => item.stressScore);
+  const averageSleep = sleep.length ? Math.round((sleep.reduce((total, value) => total + value, 0) / sleep.length) * 10) / 10 : '—';
+  const averageStress = stress.length ? Math.round(stress.reduce((total, value) => total + value, 0) / stress.length) : '—';
+  useEffect(() => { if (authUser?.role === 'user') void loadPsychologists(); }, [authUser?.id]);
+  const choose = async (psychologist) => { setIsSelecting(true); try { await selectPsychologist(psychologist.id, consentChoice !== false); } finally { setIsSelecting(false); } };
+  const disconnect = async () => { setIsDisconnecting(true); try { await disconnectPsychologist(); } finally { setIsDisconnecting(false); } };
+  const firstWeekday = calendarMonth.getDay(); const days = Array.from({ length: 30 }, (_, index) => index + 1); const summary = moodSummary(selectedMood);
+  return <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-12">
+    <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><span className="inline-flex items-center gap-2 rounded-full bg-primary-container px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-on-primary-container"><span className="h-2 w-2 rounded-full bg-primary" />Sesi selesai · Mood Garden sync</span><h1 className="mt-2 text-3xl font-bold tracking-tight text-on-surface sm:text-5xl">Pikiranmu Plong Lagi! 🎉</h1><p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">Lihat kemajuan emosional, kalender mood harian, dan ringkasan pemulihan pikiranmu secara transparan dan aman.</p></div><div className="rounded-full bg-surface-container-lowest p-2 text-xs font-bold shadow-[0_3px_0_#121214]"><span className="rounded-full bg-secondary-container px-3 py-1.5 text-on-secondary-container">🔥 {streakDays} Hari Beruntun</span></div></div>
+    <div className="grid gap-7 lg:grid-cols-12"><div className="space-y-7 lg:col-span-8"><article className={`relative overflow-hidden rounded-[2rem] p-6 shadow-[0_5px_0_#121214] transition-colors duration-300 sm:p-8 ${summary.container}`}><div className={`absolute right-6 top-6 hidden h-28 w-28 items-center justify-center rounded-full bg-surface-container-lowest/55 sm:flex ${summary.face}`}><MoodFace mood={selectedMood} /></div><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${summary.eyebrow}`}>Monthly Mood Summary · September 2026</span><h2 className={`mt-3 text-4xl font-bold ${summary.heading}`}>{selectedMood} <span aria-hidden="true">{summary.emoji}</span></h2><p className={`mt-1 max-w-lg text-sm font-medium ${summary.copy}`}>Ringkasan tidur, tingkat stres, dan streak berdasarkan data Daily Pulse yang kamu isi sendiri.</p><div className="mt-6 grid max-w-xl grid-cols-3 gap-3"><Metric label="Sleep duration" value={averageSleep === '—' ? '—' : `${averageSleep} jam`} note="Rata-rata 😴" style={summary}/><Metric label="Stress level" value={averageStress} note={averageStress === '—' ? 'Belum ada data' : averageStress >= 70 ? 'Tinggi' : averageStress >= 40 ? 'Sedang' : 'Ringan'} style={summary}/><Metric label="Streak" value={`${streakDays} hari`} note="Beruntun 🔥" style={summary}/></div></article>
+      <article className="relative rounded-[2rem] border border-surface-container bg-surface-container-lowest p-5 shadow-[0_5px_0_#121214] sm:p-7"><div className="flex items-center justify-between"><div><h2 className="flex items-center gap-2 text-2xl font-bold text-on-surface"><span className="material-symbols-outlined text-primary">calendar_month</span>Mood Calendar</h2><p className="mt-1 text-xs font-medium text-on-surface-variant">September 2026 · Klik tanggal untuk lihat detail.</p></div><span className="rounded-full bg-surface-container-low px-4 py-2 text-xs font-bold">Sep 2026</span></div><div className="mt-6 grid grid-cols-7 gap-2 text-center text-[11px] font-bold text-on-surface-variant">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => <span key={day}>{day}</span>)}</div><div className="mt-3 grid grid-cols-7 gap-2">{Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} className="aspect-square rounded-xl bg-surface-container-low" />)}{days.map((day) => { const entry = monthMood.get(day); const style = moodStyle(entry?.mood); return <button key={day} onClick={() => setActiveDay({ day, entry })} className={`aspect-square rounded-xl p-1 text-center shadow-[0_2px_0_#121214] transition-transform hover:scale-105 ${entry ? style.bg : 'bg-surface-container-low'}`}><span className={`material-symbols-outlined mt-1 block text-lg ${entry ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{entry ? style.icon : '·'}</span><span className={`block text-[10px] font-bold ${entry ? style.text : 'text-on-surface-variant/60'}`}>{day}</span></button>})}</div><div className="mt-5 flex flex-wrap justify-between gap-3 border-t border-surface-container pt-4 text-xs">{Object.entries(counts).map(([mood, total]) => <span className="flex items-center gap-1.5" key={mood}><span className={`h-3 w-3 rounded-full ${moodStyle(mood).bg}`} />{mood} ({total})</span>)}</div>{activeDay && <CalendarDetail detail={activeDay} onClose={() => setActiveDay(null)} />}</article></div>
+      <aside className="space-y-5 lg:col-span-4"><article className="rounded-[2rem] border border-surface-container bg-surface-container-lowest p-6 shadow-[0_5px_0_#121214]"><span className="text-xs font-bold uppercase tracking-widest text-tertiary">Chat with consultant</span>{selectedConsultant ? <div className="mt-4"><div className="flex items-center justify-between"><div><h2 className="text-xl font-bold text-on-surface">{selectedConsultant.name}</h2><p className="mt-1 text-xs text-on-surface-variant">Konsultanmu sudah terkunci.</p></div><span className="material-symbols-outlined rounded-full bg-tertiary-container p-3 text-on-tertiary-container">lock</span></div><p className="mt-4 rounded-2xl bg-surface-container p-3 text-xs leading-relaxed text-on-surface-variant">{authUser.shareDataWithPsychologist ? 'Data kamu telah dibagikan kepada konsultan. Gunakan chat mengambang di kanan bawah untuk berbicara.' : 'Chat privat aktif. Data Daily Pulse belum dibagikan.'}</p><button disabled={isDisconnecting} onClick={disconnect} className="mt-3 w-full rounded-full bg-error-container py-2.5 text-xs font-bold text-on-error-container disabled:opacity-60">{isDisconnecting ? 'Memutuskan?' : 'Putuskan koneksi konsultan'}</button></div> : <><h2 className="mt-2 text-xl font-bold text-on-surface">Pilih konsultannya</h2><p className="mt-1 text-xs text-on-surface-variant">Pilihan akan terkunci setelah kamu memilih.</p><div className="mt-4 space-y-3">{psychologists.map((psychologist) => <button disabled={isSelecting} onClick={() => choose(psychologist)} key={psychologist.id} className="w-full rounded-2xl bg-surface-container p-4 text-left transition-colors hover:bg-tertiary-container"><div className="font-bold text-on-surface">{psychologist.name}</div><div className="mt-1 text-xs text-on-surface-variant">Psikolog Careflow · pilih konsultan</div></button>)}</div></>}</article><article className="rounded-[2rem] bg-inverse-surface p-6 text-inverse-on-surface shadow-[0_5px_0_#121214]"><span className="text-xs font-bold uppercase tracking-widest text-inverse-primary">Mood support</span><h2 className="mt-2 text-xl font-bold">Perasaanmu valid.</h2><p className="mt-2 text-sm text-inverse-on-surface/80">Jika butuh teman bicara, gunakan tombol konsultasi atau chat dengan konsultan yang dipilih.</p></article>{authError && <p role="alert" className="rounded-xl bg-error-container px-3 py-2 text-xs font-semibold text-on-error-container">{authError}</p>}</aside></div>
+  </section>;
 }
+function Metric({ label, value, note, style }) { return <div className={`rounded-2xl p-3 shadow-[0_2px_0_#121214] ${style.metric}`}><span className={`text-[10px] font-bold uppercase ${style.metricLabel}`}>{label}</span><strong className={`mt-1 block text-lg ${style.metricValue}`}>{value}</strong><span className={`text-[10px] font-semibold ${style.metricNote}`}>{note}</span></div>; }
+function MoodFace({ mood }) {
+  const expression = mood === 'Angry'
+    ? <><path d="M28 37 43 42M72 37 57 42M31 51h12M57 51h12M38 71Q50 63 62 71" /></>
+    : mood === 'Sleepy'
+      ? <><path d="M29 45Q37 52 45 45M55 45Q63 52 71 45M38 67Q50 75 62 67" /></>
+      : mood === 'Bored'
+        ? <><circle cx="36" cy="44" r="3" fill="currentColor" stroke="none" /><circle cx="64" cy="44" r="3" fill="currentColor" stroke="none" /><path d="M37 67h26" /></>
+        : <><path d="M28 43Q36 30 44 43M56 43Q64 30 72 43M31 62Q50 84 69 62" /><circle cx="24" cy="58" r="5" fill="#fec5a7" stroke="none" /><circle cx="76" cy="58" r="5" fill="#fec5a7" stroke="none" /></>;
+  return <svg viewBox="0 0 100 100" className="h-20 w-20" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="6" aria-hidden="true">{expression}</svg>;
+}
+function CalendarDetail({ detail, onClose }) { const entry = detail.entry; const style = moodStyle(entry?.mood); return <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[2rem] bg-black/40 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-[2rem] border-2 border-[#121214] bg-surface-container-lowest p-6 shadow-[0_8px_0_#121214]"><button onClick={onClose} className="float-right flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface">×</button><span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Detail catatan kalender</span><div className="mt-5 flex items-center gap-3"><span className={`flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold ${entry ? style.bg : 'bg-surface-container'}`}>{detail.day}</span><div><h3 className="text-lg font-bold text-on-surface">{entry ? `Mood tercatat: ${entry.mood}` : 'Belum ada catatan mood'}</h3><p className="text-xs font-semibold text-primary">Status: {entry?.mood || '—'}</p></div></div><button onClick={onClose} className="mt-6 w-full rounded-full bg-primary py-3 text-xs font-bold text-on-primary">Tutup Catatan</button></div></div>; }
