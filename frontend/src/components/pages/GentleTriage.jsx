@@ -225,6 +225,50 @@ export default function GentleTriage() {
       : (todayMetric?.stressScore ?? null);
   const stressScore = displayStressScore;
   const stressInfo = stressLevelLabel(stressScore);
+  const weeklyChartDays = (() => {
+    const dateKey = (date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const metricByDate = new Map(
+      weeklyMetrics.map((metric) => [metric.metricDate, metric]),
+    );
+    const todayKey = todayMetric?.metricDate || dateKey(new Date());
+    const currentMetric = metricByDate.get(todayKey) || {
+      metricDate: todayKey,
+    };
+    metricByDate.set(todayKey, {
+      ...currentMetric,
+      sleepHours:
+        sleepHours ??
+        currentMetric.sleepHours ??
+        todayMetric?.sleepHours ??
+        null,
+      stressScore:
+        quizAnswers.length === quizQuestions.length
+          ? stressScore
+          : (currentMetric.stressScore ?? todayMetric?.stressScore ?? null),
+    });
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      const key = dateKey(date);
+      const metric = metricByDate.get(key) || {};
+      return {
+        key,
+        label:
+          index === 6
+            ? "Today"
+            : new Intl.DateTimeFormat("en-US", { weekday: "narrow" }).format(
+                date,
+              ),
+        sleepHours: metric.sleepHours ?? null,
+        stressScore: metric.stressScore ?? null,
+      };
+    });
+  })();
+  const weeklyStressSamples = weeklyChartDays
+    .map((day) => day.stressScore)
+    .filter((value) => value != null);
 
   const handleSaveVibe = async () => {
     await saveCurrentSession({
@@ -798,15 +842,39 @@ export default function GentleTriage() {
                   </span>
                 </div>
 
-                <div className="flex items-end justify-between gap-1.5 h-20 my-3 px-2">
-                  <div className="w-3 rounded-full bg-on-secondary-container/30 h-10 group-hover:h-14 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container/50 h-14 group-hover:h-18 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container h-18 group-hover:h-12 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container/80 h-12 group-hover:h-20 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container h-20 group-hover:h-15 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container/70 h-16 group-hover:h-10 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container/40 h-8 group-hover:h-16 transition-all duration-300"></div>
-                  <div className="w-3 rounded-full bg-on-secondary-container/85 h-15 group-hover:h-12 transition-all duration-300"></div>
+                <div className="my-3 h-24 px-1">
+                  <div className="flex h-20 items-end justify-between gap-1.5 border-b border-on-secondary-container/25 pb-1">
+                    {weeklyChartDays.map((day) => {
+                      const height =
+                        day.sleepHours == null
+                          ? 4
+                          : Math.max(
+                              12,
+                              Math.min(100, (day.sleepHours / 12) * 100),
+                            );
+                      return (
+                        <div
+                          key={day.key}
+                          className="flex h-full min-w-0 flex-1 items-end justify-center"
+                          title={
+                            day.sleepHours == null
+                              ? `${day.label}: no sleep data`
+                              : `${day.label}: ${day.sleepHours} hours`
+                          }
+                        >
+                          <div
+                            className={`w-full max-w-3 rounded-full transition-all duration-500 ${day.sleepHours == null ? "bg-on-secondary-container/15" : "bg-on-secondary-container/85"}`}
+                            style={{ height: `${height}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-1 flex justify-between px-0.5 text-[9px] font-bold text-on-secondary-container/70">
+                    {weeklyChartDays.map((day) => (
+                      <span key={day.key}>{day.label}</span>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex items-baseline justify-between">
@@ -840,18 +908,29 @@ export default function GentleTriage() {
                       Stress Indicator
                     </span>
                   </div>
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${stressScore != null ? (stressScore >= 70 ? "bg-red-500" : stressScore >= 40 ? "bg-amber-500" : "bg-emerald-500") : "bg-on-tertiary-container/35"}`}
-                  ></span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${stressScore != null ? (stressScore >= 70 ? "bg-red-500" : stressScore >= 40 ? "bg-amber-500" : "bg-emerald-500") : "bg-on-tertiary-container/35"}`}></span>
+                    <span className="rounded-full bg-surface-container-lowest/70 px-2.5 py-0.5 text-[10px] font-bold text-on-surface shadow-xs">
+                      {weeklyStressSamples.length > 0 ? `${weeklyStressSamples.length}-day data` : "Not filled yet"}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-end justify-between gap-1.5 h-20 my-3 px-2">
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container/20 h-4 group-hover:h-6 transition-all"></div>
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container/30 h-7 group-hover:h-9 transition-all"></div>
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container/40 h-10 group-hover:h-13 transition-all"></div>
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container/60 h-13 group-hover:h-16 transition-all"></div>
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container/80 h-16 group-hover:h-18 transition-all"></div>
-                  <div className="w-3 rounded-t-md bg-on-tertiary-container h-20 group-hover:h-20 transition-all"></div>
+                <div className="my-3 h-24 px-1">
+                  <div className="flex h-20 items-end justify-between gap-1.5 border-b border-on-tertiary-container/20 pb-1">
+                    {weeklyChartDays.map((day) => {
+                      const height = day.stressScore == null ? 4 : Math.max(8, Math.min(100, day.stressScore));
+                      const color = day.stressScore == null ? "bg-on-tertiary-container/15" : day.stressScore >= 70 ? "bg-error" : day.stressScore >= 40 ? "bg-amber-500" : "bg-emerald-500";
+                      return (
+                        <div key={day.key} className="flex h-full min-w-0 flex-1 items-end justify-center" title={day.stressScore == null ? `${day.label}: no stress data` : `${day.label}: ${day.stressScore}/100`}>
+                          <div className={`w-full max-w-3 rounded-t-full transition-all duration-500 ${color}`} style={{ height: `${height}%` }} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-1 flex justify-between px-0.5 text-[9px] font-bold text-on-tertiary-container/70">
+                    {weeklyChartDays.map((day) => <span key={day.key}>{day.label}</span>)}
+                  </div>
                 </div>
 
                 <div className="flex items-baseline justify-between">
