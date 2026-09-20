@@ -374,13 +374,38 @@ export function FlowProvider({ children }) {
     }
   };
 
+  const SLICE_LEVEL_GUIDANCE = [
+    'Focus only on the first 60 seconds. You don\'t need to think about what comes next yet.',
+    'Even 20 seconds of this counts as a win. Just touch the task, nothing more.',
+    'This is the smallest version possible. If you do only this, you\'ve already broken the freeze.',
+  ];
+
+  const simplifyAction = (action) => {
+    // Strip a leading number/quantity (e.g. "Write 3 key concepts" -> "Write key concepts")
+    const withoutQuantity = action.replace(/\b\d+\b\s*/, '');
+    // Keep only the first clause (before "and", a comma, or a period) so the step stays concrete and short.
+    const firstClause = withoutQuantity.split(/\s+and\s+|,|\./i)[0].trim();
+    return firstClause || withoutQuantity.trim();
+  };
+
   const sliceTaskSmaller = (taskId) => {
-    setMicroTasks((previous) => previous.map((task) => task.id === taskId ? {
-      ...task,
-      action: `Start with one word: ${task.action.slice(0, 36)}`,
-      duration: '1 minute',
-      guidance: 'Focus only on the first 60 seconds. You don\'t need to think about what comes next yet.',
-    } : task));
+    audioEngine.playPopSnip();
+    setMicroTasks((previous) => previous.map((task) => {
+      if (task.id !== taskId) return task;
+      const sliceLevel = (task.sliceLevel || 0) + 1;
+      const baseAction = task.originalAction || task.action;
+      const simplified = simplifyAction(baseAction);
+      const guidance = SLICE_LEVEL_GUIDANCE[Math.min(sliceLevel - 1, SLICE_LEVEL_GUIDANCE.length - 1)];
+
+      return {
+        ...task,
+        originalAction: baseAction,
+        sliceLevel,
+        action: sliceLevel === 1 ? `Just start: ${simplified}` : `Even smaller: ${simplified}`,
+        duration: '1 minute',
+        guidance,
+      };
+    }));
   };
 
   const resetMicroTasks = () => {

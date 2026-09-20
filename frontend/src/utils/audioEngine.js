@@ -245,6 +245,44 @@ class SoundscapeEngine {
     }
   }
 
+  playPopSnip() {
+    try {
+      this.initEffects();
+      const startAt = this.ctx.currentTime;
+
+      // A quick upward "snip" tone — light and playful, for breaking a task down smaller.
+      const oscillator = this.ctx.createOscillator();
+      const noteGain = this.ctx.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(520, startAt);
+      oscillator.frequency.exponentialRampToValueAtTime(980, startAt + 0.09);
+      noteGain.gain.setValueAtTime(0.0001, startAt);
+      noteGain.gain.linearRampToValueAtTime(0.06, startAt + 0.015);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.14);
+      oscillator.connect(noteGain);
+      noteGain.connect(this.masterGain);
+      oscillator.start(startAt);
+      oscillator.stop(startAt + 0.16);
+
+      // A brief noise tick to give it a tactile "snip" texture.
+      const tickSource = this.ctx.createBufferSource();
+      tickSource.buffer = this.createNoiseBuffer('white');
+      const tickFilter = this.ctx.createBiquadFilter();
+      tickFilter.type = 'highpass';
+      tickFilter.frequency.setValueAtTime(2500, startAt);
+      const tickGain = this.ctx.createGain();
+      tickGain.gain.setValueAtTime(0.05, startAt);
+      tickGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.05);
+      tickSource.connect(tickFilter);
+      tickFilter.connect(tickGain);
+      tickGain.connect(this.masterGain);
+      tickSource.start(startAt);
+      tickSource.stop(startAt + 0.05);
+    } catch {
+      /* ignore */
+    }
+  }
+
   playCrushBurst() {
     try {
       this.initEffects();
