@@ -7,7 +7,7 @@ import SafeHarbor from './components/pages/SafeHarbor';
 import AdminPanel from './components/pages/AdminPanel';
 import PsychologistPanel from './components/pages/PsychologistPanel';
 import CommunityPage from './components/pages/CommunityPage';
-import LoginPage from './components/LoginPage';
+import HomePage from './components/HomePage';
 import StreakPopup from './components/StreakPopup';
 import ConsultationConsentModal from './components/ConsultationConsentModal';
 import FloatingChat from './components/FloatingChat';
@@ -18,8 +18,8 @@ function Footer({ offsetForSidebar }) {
 
 function MainContent() {
   const { step, isAuthLoading, authUser, guestAllowed, streakPopup, dismissStreakPopup, consultationModalOpen, setConsultationModalOpen, setConsentChoice } = useFlow();
-  if (isAuthLoading) return <main className="flex min-h-screen items-center justify-center bg-background text-sm font-bold text-on-surface-variant">Memuat Careflow...</main>;
-  if (!authUser && !guestAllowed) return <LoginPage />;
+  if (isAuthLoading) return <main className="flex min-h-screen items-center justify-center bg-background text-sm font-bold text-on-surface-variant">Loading Careflow...</main>;
+  if (!authUser && !guestAllowed) return <HomePage />;
   const role = authUser?.role;
   const isCommunityDetail = window.location.pathname.startsWith('/community/feed/');
   const workspace = !isCommunityDetail && (role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null);
