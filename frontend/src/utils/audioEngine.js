@@ -250,7 +250,6 @@ class SoundscapeEngine {
       this.initEffects();
       const startAt = this.ctx.currentTime;
 
-      // A quick upward "snip" tone — light and playful, for breaking a task down smaller.
       const oscillator = this.ctx.createOscillator();
       const noteGain = this.ctx.createGain();
       oscillator.type = 'triangle';
@@ -264,7 +263,6 @@ class SoundscapeEngine {
       oscillator.start(startAt);
       oscillator.stop(startAt + 0.16);
 
-      // A brief noise tick to give it a tactile "snip" texture.
       const tickSource = this.ctx.createBufferSource();
       tickSource.buffer = this.createNoiseBuffer('white');
       const tickFilter = this.ctx.createBiquadFilter();

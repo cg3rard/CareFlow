@@ -381,9 +381,7 @@ export function FlowProvider({ children }) {
   ];
 
   const simplifyAction = (action) => {
-    // Strip a leading number/quantity (e.g. "Write 3 key concepts" -> "Write key concepts")
     const withoutQuantity = action.replace(/\b\d+\b\s*/, '');
-    // Keep only the first clause (before "and", a comma, or a period) so the step stays concrete and short.
     const firstClause = withoutQuantity.split(/\s+and\s+|,|\./i)[0].trim();
     return firstClause || withoutQuantity.trim();
   };
