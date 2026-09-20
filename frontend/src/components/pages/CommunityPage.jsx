@@ -55,7 +55,9 @@ export default function CommunityPage() {
   const {
     authUser,
     communityPosts,
+    adminCommunityPosts,
     loadCommunity,
+    loadAdminCommunityPosts,
     loadCommunityPost,
     createCommunityPost,
     addCommunityComment,
@@ -69,12 +71,18 @@ export default function CommunityPage() {
   } = useFlow();
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [shareLink, setShareLink] = useState("");
+  const [adminVisibilityFilter, setAdminVisibilityFilter] = useState("visible");
   const [feedId, setFeedId] = useState(feedIdFromPath);
   const [detailPost, setDetailPost] = useState(null);
 
   useEffect(() => {
     if (!["user", "admin"].includes(authUser?.role)) {
       setLoading(false);
+      return;
+    }
+    if (authUser.role === "admin") {
+      loadAdminCommunityPosts().finally(() => setLoading(false));
       return;
     }
     loadCommunity().finally(() => setLoading(false));
@@ -99,7 +107,23 @@ export default function CommunityPage() {
       .finally(() => setLoading(false));
   }, [feedId, authUser?.id]);
 
-  const posts = feedId ? (detailPost ? [detailPost] : []) : communityPosts;
+  const adminFilteredPosts = adminCommunityPosts.filter((post) =>
+    adminVisibilityFilter === "all"
+      ? true
+      : adminVisibilityFilter === "hidden"
+        ? post.isHidden
+        : !post.isHidden,
+  );
+  const sidebarStoryCount = authUser?.role === "admin"
+    ? adminCommunityPosts.length
+    : communityPosts.length;
+  const posts = feedId
+    ? detailPost
+      ? [detailPost]
+      : []
+    : authUser?.role === "admin"
+      ? adminFilteredPosts
+      : communityPosts;
   const openFeed = (postId) => {
     window.history.pushState({}, "", `/community/feed/${postId}`);
     setFeedId(postId);
@@ -145,29 +169,53 @@ export default function CommunityPage() {
   };
   const share = async (post) => {
     setAuthError("");
-    await recordCommunityShare(post.id);
-    if (feedId)
-      setDetailPost((current) =>
-        current ? { ...current, shareCount: current.shareCount + 1 } : current,
-      );
+    // Do not await this before navigator.share: the Web Share API requires
+    // the original button-click activation, which an earlier await can consume.
+    const recordShare = recordCommunityShare(post.id);
     const url = new URL(
       `/community/feed/${post.id}`,
       window.location.origin,
     ).toString();
     const text = `${post.authorName}: ${post.body}`;
     try {
-      if (navigator.share)
+      if (window.isSecureContext && navigator.share) {
         await navigator.share({
           title: "A story from Careflow Community",
           text,
           url,
         });
-      else if (navigator.clipboard) await navigator.clipboard.writeText(url);
-      setNotice("The story link is ready to share.");
+        setShareLink("");
+        setNotice("Share sheet opened.");
+      } else if (window.isSecureContext && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        setShareLink("");
+        setNotice("Story link copied. Ready to share.");
+      } else {
+        setShareLink(url);
+        setNotice("Direct sharing is unavailable here. Copy the link below to share this story.");
+      }
     } catch (error) {
-      if (error?.name !== "AbortError")
-        setNotice("Share recorded. Copy the link from this page if needed.");
+      if (error?.name === "AbortError") return;
+      setShareLink(url);
+      setNotice("Direct sharing is unavailable here. Copy the link below to share this story.");
+    } finally {
+      try {
+        await recordShare;
+        if (feedId)
+          setDetailPost((current) =>
+            current ? { ...current, shareCount: current.shareCount + 1 } : current,
+          );
+      } catch (error) {
+        setAuthError(error.message || "The share could not be recorded.");
+      }
     }
+  };
+
+  const selectShareLink = () => {
+    const input = document.getElementById("community-share-link");
+    input?.focus();
+    input?.select();
+    setNotice("Link selected. Press Ctrl+C (or Cmd+C) to copy it.");
   };
 
   const remove = async (post) => {
@@ -184,8 +232,9 @@ export default function CommunityPage() {
 
   const hidePost = async (post) => {
     setAuthError("");
-    await updateAdminCommunityPost(post.id, true);
-    setNotice("The post has been hidden from the Community.");
+    const nextHidden = !post.isHidden;
+    await updateAdminCommunityPost(post.id, nextHidden);
+    setNotice(nextHidden ? "The post has been hidden from the Community." : "The post has been restored to the Community.");
     if (feedId) {
       window.history.pushState({}, "", "/community/");
       setFeedId("");
@@ -223,7 +272,7 @@ export default function CommunityPage() {
     <section className="w-full py-7">
       <div className="mt-6 min-h-[calc(100vh-8rem)] w-full lg:pl-[22rem]">
         <CommunitySidebar
-          count={communityPosts.length}
+          count={sidebarStoryCount}
           className="h-fit rounded-[2rem] border border-primary-container bg-gradient-to-b from-primary-container via-surface-container-lowest to-surface-container-lowest p-6 shadow-[0_4px_0_#121214] sm:mx-6 lg:fixed lg:top-20 lg:bottom-0 lg:left-0 lg:z-[60] lg:h-[calc(100vh-5rem)] lg:w-[22rem] lg:overflow-hidden lg:rounded-none lg:border-y-0 lg:border-l-0 lg:border-r lg:border-primary-container lg:p-8 lg:shadow-none"
         />
         <main className="mx-auto w-full max-w-5xl min-w-0 space-y-5 px-4 pb-8 sm:px-6 lg:px-10">
@@ -248,6 +297,30 @@ export default function CommunityPage() {
                   close
                 </span>
               </button>
+            </div>
+          )}
+          {shareLink && (
+            <div className="animate-community-panel rounded-2xl border border-primary-container bg-surface-container-lowest p-4 shadow-[0_3px_0_#121214]">
+              <p className="text-xs font-bold text-on-surface">Share this story</p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="community-share-link"
+                  readOnly
+                  value={shareLink}
+                  onFocus={(event) => event.target.select()}
+                  className="min-w-0 flex-1 rounded-xl bg-surface-container px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  aria-label="Community story link"
+                />
+                <button
+                  type="button"
+                  onClick={selectShareLink}
+                  className="community-tap inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-on-primary"
+                >
+                  <span className="material-symbols-outlined text-base">content_copy</span>
+                  Select link
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-on-surface-variant">If the Copy button cannot access your clipboard, the link is selected so you can press Ctrl+C or Cmd+C.</p>
             </div>
           )}
           {!feedId && authUser.role === "user" && (
@@ -276,6 +349,22 @@ export default function CommunityPage() {
                   : "The latest stories from a space that looks out for each other."}
               </p>
             </div>
+            {!feedId && authUser.role === "admin" && (
+              <label className="inline-flex items-center gap-2 rounded-full bg-surface-container px-3 py-2 text-xs font-bold text-on-surface shadow-xs">
+                <span className="material-symbols-outlined text-[18px] text-error">filter_list</span>
+                <span className="hidden sm:inline">Posts</span>
+                <select
+                  value={adminVisibilityFilter}
+                  onChange={(event) => setAdminVisibilityFilter(event.target.value)}
+                  className="bg-transparent font-bold outline-none"
+                  aria-label="Filter Community posts by visibility"
+                >
+                  <option value="visible">Visible</option>
+                  <option value="hidden">Hidden</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+            )}
             {feedId && authUser.role === "psychologist" ? (
               <button
                 type="button"
@@ -296,7 +385,7 @@ export default function CommunityPage() {
                 type="button"
                 onClick={() => {
                   setLoading(true);
-                  loadCommunity().finally(() => setLoading(false));
+                  (authUser.role === "admin" ? loadAdminCommunityPosts() : loadCommunity()).finally(() => setLoading(false));
                 }}
                 className="community-tap flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface shadow-[0_2px_6px_rgb(27,27,29,0.08)] hover:bg-surface-container-high"
                 aria-label="Reload community"
@@ -633,14 +722,12 @@ function PostCard({
                     event.stopPropagation();
                     setConfirmingHide((value) => !value);
                   }}
-                  aria-label="Admin tools: hide post"
+                  aria-label={post.isHidden ? "Admin tools: unhide post" : "Admin tools: hide post"}
                   aria-expanded={confirmingHide}
-                  title="Admin tools"
-                  className="community-tap flex h-8 w-8 items-center justify-center rounded-full bg-error text-on-error shadow-[0_2px_0_#121214] hover:bg-error/90"
+                  title={post.isHidden ? "Restore post" : "Admin tools"}
+                  className={`community-tap flex h-8 w-8 items-center justify-center rounded-full text-on-error shadow-[0_2px_0_#121214] ${post.isHidden ? "bg-primary text-on-primary hover:bg-primary/90" : "bg-error hover:bg-error/90"}`}
                 >
-                  <span className="material-symbols-outlined text-[19px]">
-                    priority_high
-                  </span>
+                  <span className="material-symbols-outlined text-[19px]">{post.isHidden ? "visibility" : "priority_high"}</span>
                 </button>
                 {confirmingHide && (
                   <div
@@ -654,12 +741,13 @@ function PostCard({
                         warning
                       </span>
                       <p className="font-semibold leading-relaxed text-on-surface">
-                        Hide this post from everyone?
+                        {post.isHidden ? "Restore this post?" : "Hide this post from everyone?"}
                       </p>
                     </div>
                     <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">
-                      It will disappear from the Community immediately. You can
-                      restore it later from admin moderation.
+                      {post.isHidden
+                        ? "This post will become visible in the Community again."
+                        : "It will disappear from the Community immediately. You can restore it later from admin moderation."}
                     </p>
                     <div className="mt-3 flex gap-2">
                       <button
@@ -669,9 +757,9 @@ function PostCard({
                           event.stopPropagation();
                           handleHide();
                         }}
-                        className="community-tap flex-1 rounded-full bg-error px-3 py-2 font-bold text-on-error disabled:opacity-50"
+                        className={`community-tap flex-1 rounded-full px-3 py-2 font-bold text-on-error disabled:opacity-50 ${post.isHidden ? "bg-primary text-on-primary" : "bg-error"}`}
                       >
-                        {hiding ? "Hiding…" : "Hide post"}
+                        {hiding ? (post.isHidden ? "Restoring…" : "Hiding…") : (post.isHidden ? "Restore post" : "Hide post")}
                       </button>
                       <button
                         type="button"

@@ -43,6 +43,7 @@ export default function AdminPanel() {
   const [deletingId, setDeletingId] = useState(null);
   const [pendingPostId, setPendingPostId] = useState(null);
   const [moderatingPostId, setModeratingPostId] = useState(null);
+  const [postVisibilityFilter, setPostVisibilityFilter] = useState("hidden");
 
   useEffect(() => {
     void loadAdminUsers().finally(() => setIsLoadingUsers(false));
@@ -126,6 +127,13 @@ export default function AdminPanel() {
     (post) => !post.isHidden,
   ).length;
   const hiddenPostCount = adminCommunityPosts.length - visiblePostCount;
+  const filteredCommunityPosts = adminCommunityPosts.filter((post) =>
+    postVisibilityFilter === "all"
+      ? true
+      : postVisibilityFilter === "hidden"
+        ? post.isHidden
+        : !post.isHidden,
+  );
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-12">
@@ -372,7 +380,7 @@ export default function AdminPanel() {
           </table>
         </div>
 
-        <div className="hidden" aria-hidden="true">
+        <div className="mt-10 border-t border-surface-container pt-8">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-secondary">
@@ -387,7 +395,20 @@ export default function AdminPanel() {
                 They remain here so an admin can restore them.
               </p>
             </div>
-            <div className="flex gap-2 text-xs font-bold">
+            <div className="flex flex-wrap items-center justify-end gap-2 text-xs font-bold">
+              <label className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-on-surface">
+                <span>Show</span>
+                <select
+                  value={postVisibilityFilter}
+                  onChange={(event) => setPostVisibilityFilter(event.target.value)}
+                  className="bg-transparent font-bold outline-none"
+                  aria-label="Filter community posts by visibility"
+                >
+                  <option value="hidden">Hidden posts</option>
+                  <option value="visible">Visible posts</option>
+                  <option value="all">All posts</option>
+                </select>
+              </label>
               <span className="rounded-full bg-primary-container px-3 py-1.5 text-on-primary-container">
                 {visiblePostCount} visible
               </span>
@@ -419,17 +440,17 @@ export default function AdminPanel() {
                       Loading community posts…
                     </td>
                   </tr>
-                ) : adminCommunityPosts.length === 0 ? (
+                ) : filteredCommunityPosts.length === 0 ? (
                   <tr>
                     <td
                       className="px-4 py-7 text-on-surface-variant"
                       colSpan="6"
                     >
-                      No community posts yet.
+                      No {postVisibilityFilter === "hidden" ? "hidden" : postVisibilityFilter === "visible" ? "visible" : "community"} posts found.
                     </td>
                   </tr>
                 ) : (
-                  adminCommunityPosts.map((post) => (
+                  filteredCommunityPosts.map((post) => (
                     <tr
                       key={post.id}
                       className={`border-t border-surface-container/80 ${post.isHidden ? "bg-error-container/20" : ""}`}
