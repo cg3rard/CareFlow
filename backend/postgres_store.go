@@ -73,9 +73,18 @@ func (s *Store) migratePostgres(ctx context.Context) error {
 			tag VARCHAR(80) NOT NULL,
 			panic_level SMALLINT NOT NULL CHECK (panic_level BETWEEN 1 AND 5),
 			overwhelm_level VARCHAR(20) NOT NULL,
+			share_with_psychologist BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		ALTER TABLE cognitive_declutter_entries ADD COLUMN IF NOT EXISTS share_with_psychologist BOOLEAN NOT NULL DEFAULT FALSE;
 		CREATE INDEX IF NOT EXISTS declutter_entries_user_created_at_idx ON cognitive_declutter_entries (user_id, created_at DESC);
+		CREATE TABLE IF NOT EXISTS task_completions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			xp INTEGER NOT NULL CHECK (xp >= 0),
+			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS task_completions_user_completed_at_idx ON task_completions (user_id, completed_at DESC);
 	`)
 	if err != nil {
 		return fmt.Errorf("migrate PostgreSQL: %w", err)
@@ -219,7 +228,7 @@ func (s *Store) dailyMetricsForUserLastWeekPostgres(userID string) ([]DailyMetri
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, user_id, metric_date::text, sleep_hours, stress_score, COALESCE(stress_label, ''), updated_at
 		FROM daily_metrics
-		WHERE user_id = $1 AND metric_date >= (CURRENT_DATE - INTERVAL '6 days')
+		WHERE user_id = $1 AND metric_date >= (CURRENT_DATE - INTERVAL '30 days')
 		ORDER BY metric_date DESC
 	`, userID)
 	if err != nil {
@@ -240,7 +249,7 @@ func (s *Store) dailyMetricsForUserLastWeekPostgres(userID string) ([]DailyMetri
 func (s *Store) addDeclutterEntryPostgres(entry DeclutterEntry) (DeclutterEntry, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO cognitive_declutter_entries (id, user_id, content, tag, panic_level, overwhelm_level, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, entry.ID, entry.UserID, entry.Content, entry.Tag, entry.PanicLevel, entry.OverwhelmLevel, entry.CreatedAt)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO cognitive_declutter_entries (id, user_id, content, tag, panic_level, overwhelm_level, share_with_psychologist, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, entry.ID, entry.UserID, entry.Content, entry.Tag, entry.PanicLevel, entry.OverwhelmLevel, entry.ShareWithPsychologist, entry.CreatedAt)
 	if err != nil {
 		return DeclutterEntry{}, fmt.Errorf("simpan catatan cognitive de-clutter: %w", err)
 	}
@@ -250,7 +259,7 @@ func (s *Store) addDeclutterEntryPostgres(entry DeclutterEntry) (DeclutterEntry,
 func (s *Store) declutterEntriesForUserPostgres(userID string) ([]DeclutterEntry, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id, user_id, content, tag, panic_level, overwhelm_level, created_at FROM cognitive_declutter_entries WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, user_id, content, tag, panic_level, overwhelm_level, share_with_psychologist, created_at FROM cognitive_declutter_entries WHERE user_id = $1 ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -258,10 +267,55 @@ func (s *Store) declutterEntriesForUserPostgres(userID string) ([]DeclutterEntry
 	result := make([]DeclutterEntry, 0)
 	for rows.Next() {
 		var entry DeclutterEntry
-		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.Content, &entry.Tag, &entry.PanicLevel, &entry.OverwhelmLevel, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.Content, &entry.Tag, &entry.PanicLevel, &entry.OverwhelmLevel, &entry.ShareWithPsychologist, &entry.CreatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, entry)
 	}
 	return result, rows.Err()
+}
+
+func (s *Store) addTaskCompletionPostgres(completion TaskCompletion) (TaskCompletion, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+	defer cancel()
+	_, err := s.db.ExecContext(ctx, `INSERT INTO task_completions (id, user_id, xp, completed_at) VALUES ($1, $2, $3, $4)`, completion.ID, completion.UserID, completion.XP, completion.CompletedAt)
+	if err != nil {
+		return TaskCompletion{}, fmt.Errorf("simpan task completion: %w", err)
+	}
+	return completion, nil
+}
+
+func (s *Store) taskCompletionsForUserLastWeekPostgres(userID string) ([]TaskCompletion, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+	defer cancel()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, user_id, xp, completed_at
+		FROM task_completions
+		WHERE user_id = $1 AND completed_at >= (NOW() - INTERVAL '6 days')
+		ORDER BY completed_at ASC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]TaskCompletion, 0)
+	for rows.Next() {
+		var completion TaskCompletion
+		if err := rows.Scan(&completion.ID, &completion.UserID, &completion.XP, &completion.CompletedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, completion)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) lifetimeXPForUserPostgres(userID string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+	defer cancel()
+	var total int
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(xp), 0) FROM task_completions WHERE user_id = $1`, userID).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
 }

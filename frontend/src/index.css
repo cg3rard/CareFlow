@@ -294,40 +294,128 @@
   animation: zenBellPulse 0.7s ease-out;
 }
 
-/* Shake and crush animation for worry burner */
-@keyframes paperCrush {
+/* Wind-up shake while the "boom" is being armed, right before it explodes. */
+@keyframes worryWindup {
+  0%, 100% { transform: translateX(0) rotate(0deg) scale(1); }
+  20% { transform: translateX(-3px) rotate(-1deg) scale(1.01); }
+  40% { transform: translateX(3px) rotate(1deg) scale(1.02); }
+  60% { transform: translateX(-4px) rotate(-1.5deg) scale(1.03); }
+  80% { transform: translateX(4px) rotate(1.5deg) scale(1.04); }
+}
+
+.animate-worry-windup {
+  animation: worryWindup 0.26s ease-in-out infinite;
+}
+
+/* Explosion animation for the worry burner textarea: a sharp outward burst
+   before vanishing, triggered right after the wind-up shake above. */
+@keyframes worryExplode {
   0% {
-    transform: scale(1) rotate(0deg);
+    transform: scale(1.04) rotate(0deg);
     opacity: 1;
+    filter: blur(0px);
   }
-  20% {
-    transform: scale(0.96) rotate(-4deg);
-    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+  30% {
+    transform: scale(1.15) rotate(-1deg);
+    opacity: 1;
+    filter: blur(0px);
   }
-  40% {
-    transform: scale(0.9) rotate(5deg);
-    filter: blur(1px);
-  }
-  65% {
-    transform: scale(0.65) rotate(-8deg);
-    opacity: 0.7;
-    filter: blur(3px);
-  }
-  85% {
-    transform: scale(0.3) rotate(12deg);
-    opacity: 0.3;
-    filter: blur(6px);
+  70% {
+    transform: scale(0.35) rotate(3deg);
+    opacity: 0.35;
+    filter: blur(2px);
   }
   100% {
-    transform: scale(0) translateY(-40px);
+    transform: scale(0) rotate(6deg);
     opacity: 0;
-    filter: blur(12px);
+    filter: blur(4px);
   }
 }
 
-.animate-paper-crush {
-  animation: paperCrush 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.animate-worry-explode {
+  animation: worryExplode 0.5s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
   pointer-events: none;
+}
+
+/* A brief red flash at the moment of impact to sell the "boom". */
+@keyframes explosionFlash {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-explosion-flash {
+  animation: explosionFlash 0.5s ease-out forwards;
+}
+
+/* Expanding shockwave rings that radiate from the point of impact. */
+@keyframes shockwaveRing {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(6);
+  }
+}
+
+.animate-shockwave-ring {
+  animation: shockwaveRing 0.55s ease-out forwards;
+}
+
+/* Debris particles bursting outward radially from the center, tumbling
+   as they fly for a more chaotic, satisfying "shatter" look. */
+@keyframes explosionParticle {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 60px)), calc(-50% + var(--dy, 60px))) rotate(var(--spin, 360deg)) scale(0.15);
+  }
+}
+
+.animate-explosion-particle {
+  animation-name: explosionParticle;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+/* Emoji shrapnel (💥🔥✨) flung outward alongside the debris particles. */
+@keyframes emojiBurst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.6) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(15deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 60px)), calc(-50% + var(--dy, 60px))) scale(0.5) rotate(45deg);
+  }
+}
+
+.animate-emoji-burst {
+  animation-name: emojiBurst;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+/* Whole-card rumble so the impact is felt beyond just the textarea. */
+@keyframes cardRumble {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-4px, 2px); }
+  40% { transform: translate(4px, -2px); }
+  60% { transform: translate(-3px, -2px); }
+  80% { transform: translate(3px, 2px); }
+}
+
+.animate-card-rumble {
+  animation: cardRumble 0.4s ease-in-out;
 }
 
 /* Floating XP pop animation */

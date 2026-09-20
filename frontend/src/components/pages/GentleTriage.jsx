@@ -49,6 +49,7 @@ export default function GentleTriage() {
   const [sleepHoursDraft, setSleepHoursDraft] = useState('7');
   const [sleepLogged, setSleepLogged] = useState(false);
   const [metricLogError, setMetricLogError] = useState('');
+  const [shareWithPsychologist, setShareWithPsychologist] = useState(false);
 
   // The quiz (sleep check-in + Yes/No questions) is limited to one
   // completion per calendar day. Hydrate local state from the server so a
@@ -301,9 +302,6 @@ export default function GentleTriage() {
   const isGuest = !authUser;
 
   // Cognitive Overwhelm Meter calculation
-  const charLength = triageData.content.length;
-  const overwhelmLevel = charLength > 120 ? 'Tinggi' : charLength > 40 ? 'Sedang' : 'Ringan';
-  const overwhelmColor = charLength > 120 ? 'text-red-600 bg-red-50' : charLength > 40 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50';
 
   return (
     <div className="flex flex-col w-full pb-16">
@@ -313,10 +311,8 @@ export default function GentleTriage() {
           <div className="flex items-center gap-4">
             <div className="relative w-14 h-14 rounded-full overflow-hidden bg-secondary-container flex items-center justify-center shrink-0 shadow-xs">
               <div className="w-full h-full bg-gradient-to-tr from-amber-200 to-orange-300 flex items-center justify-center text-xl font-bold text-amber-900">
-                AM
-              </div>
-              <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary-container ring-2 ring-white"></span>
-            </div>
+                {(authUser?.name || 'Teman').trim().charAt(0).toUpperCase()}
+              </div>            </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Welcome back</span>
@@ -878,9 +874,6 @@ export default function GentleTriage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${overwhelmColor}`}>
-                    Beban: {overwhelmLevel}
-                  </span>
                   <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
                     auto_fix_high
                   </span>
@@ -921,12 +914,25 @@ export default function GentleTriage() {
                   {triageData.content.length} karakter
                 </div>
               </div>
+
+              {/* Optional consent to share this entry with a professional psychologist */}
+              <label className="mt-3 flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={shareWithPsychologist}
+                  onChange={(e) => setShareWithPsychologist(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded accent-primary cursor-pointer"
+                />
+                <span className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                  Kirim teks ini ke psikolog profesional untuk ditinjau lebih lanjut.
+                </span>
+              </label>
             </div>
 
             <div className="mt-6">
               <button
                 type="button"
-                onClick={processTriage}
+                onClick={() => processTriage({ shareWithPsychologist })}
                 disabled={isProcessingSlice}
                 className="w-full flex items-center justify-center gap-2 bg-inverse-surface text-inverse-on-surface py-4 rounded-full font-bold text-sm shadow-[0_4px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:opacity-75"
               >
@@ -941,9 +947,6 @@ export default function GentleTriage() {
                   </>
                 )}
               </button>
-              <span className="block text-center text-[11px] text-on-surface-variant mt-2 font-medium">
-                Powered by micro-CBT reframing algorithm (Offline Safe)
-              </span>
             </div>
           </div>
         </div>
@@ -979,7 +982,12 @@ export default function GentleTriage() {
             </button>
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => {
+                setStep(2);
+                window.setTimeout(() => {
+                  document.getElementById('fun-soundscapes')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+              }}
               className="px-6 py-3 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_4px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">play_arrow</span>

@@ -100,13 +100,24 @@ type DailyMetric struct {
 
 // DeclutterEntry stores one cognitive de-clutter (brain-dump) submission.
 type DeclutterEntry struct {
-	ID             string    `json:"id"`
-	UserID         string    `json:"userId"`
-	Content        string    `json:"content"`
-	Tag            string    `json:"tag"`
-	PanicLevel     int       `json:"panicLevel"`
-	OverwhelmLevel string    `json:"overwhelmLevel"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID                    string    `json:"id"`
+	UserID                string    `json:"userId"`
+	Content               string    `json:"content"`
+	Tag                   string    `json:"tag"`
+	PanicLevel            int       `json:"panicLevel"`
+	OverwhelmLevel        string    `json:"overwhelmLevel"`
+	ShareWithPsychologist bool      `json:"shareWithPsychologist"`
+	CreatedAt             time.Time `json:"createdAt"`
+}
+
+// TaskCompletion records the real moment a Flow Studio micro-task was
+// marked done, so the "Focus Activity" chart reflects genuine usage
+// instead of mock data.
+type TaskCompletion struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId"`
+	XP          int       `json:"xp"`
+	CompletedAt time.Time `json:"completedAt"`
 }
 
 type persistedData struct {
@@ -114,6 +125,7 @@ type persistedData struct {
 	Sessions         []SessionRecord  `json:"sessions"`
 	DailyMetrics     []DailyMetric    `json:"dailyMetrics"`
 	DeclutterEntries []DeclutterEntry `json:"declutterEntries"`
+	TaskCompletions  []TaskCompletion `json:"taskCompletions"`
 }
 
 type Store struct {
@@ -124,6 +136,7 @@ type Store struct {
 	sessions         []SessionRecord
 	dailyMetrics     []DailyMetric
 	declutterEntries []DeclutterEntry
+	taskCompletions  []TaskCompletion
 	tokens           map[string]string
 }
 
@@ -152,9 +165,15 @@ type DailyMetricInput struct {
 
 // DeclutterInput is the payload accepted by POST /api/declutter.
 type DeclutterInput struct {
-	Content    string `json:"content"`
-	Tag        string `json:"tag"`
-	PanicLevel int    `json:"panicLevel"`
+	Content               string `json:"content"`
+	Tag                   string `json:"tag"`
+	PanicLevel            int    `json:"panicLevel"`
+	ShareWithPsychologist bool   `json:"shareWithPsychologist,omitempty"`
+}
+
+// TaskCompletionInput is the payload accepted by POST /api/task-completions.
+type TaskCompletionInput struct {
+	XP int `json:"xp"`
 }
 
 type ProfileResponse struct {
@@ -163,6 +182,7 @@ type ProfileResponse struct {
 	Email       string          `json:"email"`
 	DateOfBirth *string         `json:"dateOfBirth,omitempty"`
 	StreakDays  int             `json:"streakDays"`
+	LifetimeXP  int             `json:"lifetimeXp"`
 	Sessions    []SessionRecord `json:"sessions,omitempty"`
 }
 
@@ -210,6 +230,8 @@ func main() {
 	mux.HandleFunc("GET /api/metrics/daily", handleListDailyMetrics(store))
 	mux.HandleFunc("POST /api/declutter", handleCreateDeclutterEntry(store))
 	mux.HandleFunc("GET /api/declutter", handleListDeclutterEntries(store))
+	mux.HandleFunc("POST /api/task-completions", handleCreateTaskCompletion(store))
+	mux.HandleFunc("GET /api/task-completions", handleListTaskCompletions(store))
 
 	serverAddr := ":" + cfg.Port
 	log.Printf("[Careflow Core] listening on %s (%s)", serverAddr, cfg.AppEnv)
@@ -244,6 +266,7 @@ func newStore(path string) (*Store, error) {
 	store.sessions = data.Sessions
 	store.dailyMetrics = data.DailyMetrics
 	store.declutterEntries = data.DeclutterEntries
+	store.taskCompletions = data.TaskCompletions
 	return store, nil
 }
 
@@ -251,7 +274,7 @@ func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return err
 	}
-	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries}, "", "  ")
+	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries, TaskCompletions: s.taskCompletions}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -492,7 +515,7 @@ func (s *Store) dailyMetricsForUserLastWeek(userID string) []DailyMetric {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	cutoff := time.Now().AddDate(0, 0, -6).Format("2006-01-02")
+	cutoff := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 	result := make([]DailyMetric, 0)
 	for _, metric := range s.dailyMetrics {
 		if metric.UserID == userID && metric.MetricDate >= cutoff {
@@ -529,7 +552,7 @@ func (s *Store) addDeclutterEntry(userID string, input DeclutterInput) (Declutte
 	} else if charLength > 40 {
 		overwhelmLevel = "Sedang"
 	}
-	entry := DeclutterEntry{ID: newID(), UserID: userID, Content: content, Tag: tag, PanicLevel: input.PanicLevel, OverwhelmLevel: overwhelmLevel, CreatedAt: time.Now().UTC()}
+	entry := DeclutterEntry{ID: newID(), UserID: userID, Content: content, Tag: tag, PanicLevel: input.PanicLevel, OverwhelmLevel: overwhelmLevel, ShareWithPsychologist: input.ShareWithPsychologist, CreatedAt: time.Now().UTC()}
 	if s.db != nil {
 		return s.addDeclutterEntryPostgres(entry)
 	}
@@ -563,6 +586,72 @@ func (s *Store) declutterEntriesForUser(userID string) []DeclutterEntry {
 	return result
 }
 
+// addTaskCompletion records the real moment a micro-task was completed.
+func (s *Store) addTaskCompletion(userID string, input TaskCompletionInput) (TaskCompletion, error) {
+	if input.XP < 0 || input.XP > 1000 {
+		return TaskCompletion{}, errors.New("nilai XP tidak valid")
+	}
+	completion := TaskCompletion{ID: newID(), UserID: userID, XP: input.XP, CompletedAt: time.Now().UTC()}
+	if s.db != nil {
+		return s.addTaskCompletionPostgres(completion)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.taskCompletions = append(s.taskCompletions, completion)
+	if err := s.saveLocked(); err != nil {
+		return TaskCompletion{}, err
+	}
+	return completion, nil
+}
+
+// taskCompletionsForUserLastWeek returns up to the last 7 days of
+// task-completion timestamps for a user, used to plot real focus activity.
+func (s *Store) taskCompletionsForUserLastWeek(userID string) []TaskCompletion {
+	if s.db != nil {
+		result, err := s.taskCompletionsForUserLastWeekPostgres(userID)
+		if err != nil {
+			log.Printf("[Careflow Core] read PostgreSQL task completions: %v", err)
+			return []TaskCompletion{}
+		}
+		return result
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cutoff := time.Now().AddDate(0, 0, -6)
+	result := make([]TaskCompletion, 0)
+	for _, completion := range s.taskCompletions {
+		if completion.UserID == userID && completion.CompletedAt.After(cutoff) {
+			result = append(result, completion)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].CompletedAt.Before(result[j].CompletedAt) })
+	return result
+}
+
+// lifetimeXPForUser sums XP across every recorded task completion for a
+// user (not just the last 7 days), so the Flow Studio level/XP badge is
+// backed by a persistent, ever-growing total instead of a per-session
+// counter that resets on reload.
+func (s *Store) lifetimeXPForUser(userID string) int {
+	if s.db != nil {
+		total, err := s.lifetimeXPForUserPostgres(userID)
+		if err != nil {
+			log.Printf("[Careflow Core] read PostgreSQL lifetime XP: %v", err)
+			return 0
+		}
+		return total
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	total := 0
+	for _, completion := range s.taskCompletions {
+		if completion.UserID == userID {
+			total += completion.XP
+		}
+	}
+	return total
+}
+
 func calculateStreak(records []SessionRecord) int {
 	location, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
@@ -593,7 +682,7 @@ func handleRegister(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusCreated, authResponse(user, token, 0))
+		writeJSON(w, http.StatusCreated, authResponse(user, token, 0, 0))
 	}
 }
 
@@ -608,7 +697,7 @@ func handleLogin(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, authResponse(user, token, calculateStreak(store.sessionsForUser(user.ID))))
+		writeJSON(w, http.StatusOK, authResponse(user, token, calculateStreak(store.sessionsForUser(user.ID)), store.lifetimeXPForUser(user.ID)))
 	}
 }
 
@@ -631,7 +720,7 @@ func handleMe(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "sesi tidak valid")
 			return
 		}
-		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), false))
+		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), false, store.lifetimeXPForUser(user.ID)))
 	}
 }
 
@@ -662,7 +751,7 @@ func handleListSessions(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
 			return
 		}
-		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), true))
+		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), true, store.lifetimeXPForUser(user.ID)))
 	}
 }
 
@@ -728,14 +817,45 @@ func handleListDeclutterEntries(store *Store) http.HandlerFunc {
 	}
 }
 
-func authResponse(user User, token string, streak int) map[string]any {
-	profile := profileResponse(user, nil, false)
+func handleCreateTaskCompletion(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		var input TaskCompletionInput
+		if err := decodeJSON(w, r, &input); err != nil {
+			return
+		}
+		completion, err := store.addTaskCompletion(user.ID, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, completion)
+	}
+}
+
+func handleListTaskCompletions(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"completions": store.taskCompletionsForUserLastWeek(user.ID)})
+	}
+}
+
+func authResponse(user User, token string, streak int, lifetimeXP int) map[string]any {
+	profile := profileResponse(user, nil, false, lifetimeXP)
 	profile.StreakDays = streak
 	return map[string]any{"token": token, "user": profile, "streakDays": streak}
 }
 
-func profileResponse(user User, records []SessionRecord, includeSessions bool) ProfileResponse {
-	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, DateOfBirth: user.DateOfBirth, StreakDays: calculateStreak(records)}
+func profileResponse(user User, records []SessionRecord, includeSessions bool, lifetimeXP int) ProfileResponse {
+	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, DateOfBirth: user.DateOfBirth, StreakDays: calculateStreak(records), LifetimeXP: lifetimeXP}
 	if includeSessions {
 		response.Sessions = records
 	}
@@ -786,9 +906,12 @@ func handleTaskSlice(cfg Config) http.HandlerFunc {
 			panicLevel = 3
 		}
 		if cfg.GeminiAPIKey != "" {
-			ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
-			if result, err := callGeminiSlice(ctx, cfg.GeminiAPIKey, content, tag, panicLevel); err == nil && len(result.Tasks) >= 3 {
+			result, err := callGeminiSlice(ctx, cfg.GeminiAPIKey, content, tag, panicLevel)
+			if err != nil {
+				log.Printf("[Careflow Core] Gemini slice request failed, falling back to heuristic engine: %v", err)
+			} else if len(result.Tasks) >= 3 {
 				writeJSON(w, http.StatusOK, result)
 				return
 			}
@@ -798,24 +921,37 @@ func handleTaskSlice(cfg Config) http.HandlerFunc {
 }
 
 func callGeminiSlice(ctx context.Context, apiKey, content, tag string, panicLevel int) (*SliceResponse, error) {
-	prompt := fmt.Sprintf(`Buat TEPAT tiga langkah mikro CBT yang aman, empatik, dalam Bahasa Indonesia, setiap langkah kurang dari lima menit. Kembalikan JSON: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 menit","guidance":"..."}]}. Beban: %q. Kategori: %q. Tingkat panik: %d/5.`, content, tag, panicLevel)
+	prompt := fmt.Sprintf(`Kamu adalah teman yang santai dan suportif, bukan terapis formal. Buat TEPAT tiga langkah mikro CBT yang aman untuk meredakan overthinking, dalam Bahasa Indonesia sehari-hari yang hangat dan friendly.
+
+Aturan penting:
+- "action" harus SANGAT SINGKAT: maksimal 5-7 kata, seperti judul aksi, bukan kalimat penuh. Contoh: "Tarik napas 3x pelan-pelan" atau "Tulis 1 kalimat aja dulu".
+- "guidance" maksimal 1 kalimat pendek, santai, tanpa jargon psikologi.
+- "affirmation" 1 kalimat pendek, hangat, dan friendly.
+- Setiap langkah harus bisa selesai di bawah 5 menit.
+- JANGAN gunakan emoji atau simbol non-teks apa pun.
+- JANGAN bertele-tele atau memberi ceramah panjang.
+
+Kembalikan HANYA JSON ini: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 menit","guidance":"..."}]}.
+
+Beban: %q. Kategori: %q. Tingkat panik: %d/5.`, content, tag, panicLevel)
 	payload, err := json.Marshal(map[string]any{"contents": []map[string]any{{"parts": []map[string]string{{"text": prompt}}}}, "generationConfig": map[string]any{"temperature": 0.4, "responseMimeType": "application/json"}})
 	if err != nil {
 		return nil, err
 	}
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", apiKey)
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=%s", apiKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: 18 * time.Second}).Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("gemini returned %d", resp.StatusCode)
+		errorBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("gemini returned %d: %s", resp.StatusCode, string(errorBody))
 	}
 	var body struct {
 		Candidates []struct {

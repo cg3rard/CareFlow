@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import confetti from 'canvas-confetti';
 import { useFlow } from '../../context/FlowContext';
 
 export default function FlowStudio() {
@@ -10,6 +9,9 @@ export default function FlowStudio() {
     sliceTaskSmaller,
     resetMicroTasks,
     totalXp,
+    taskCompletionLog,
+    weeklyTaskCompletions,
+    lifetimeXp,
     activeSound,
     toggleSoundscape,
     masterVolume,
@@ -31,6 +33,14 @@ export default function FlowStudio() {
   const [isBreathingActive, setIsBreathingActive] = useState(false);
   const [floatingXpText, setFloatingXpText] = useState('');
   const TOTAL_BREATH_CYCLES = 8;
+
+  // Simple, transparent level curve: every 100 XP earned from completing
+  // micro-tasks advances the level by 1. Based on lifetimeXp (persisted in
+  // the database via task_completions), not the per-session totalXp, so
+  // Level survives logout/reload instead of resetting.
+  const XP_PER_LEVEL = 100;
+  const calmLevel = Math.floor(lifetimeXp / XP_PER_LEVEL) + 1;
+  const xpIntoCurrentLevel = lifetimeXp % XP_PER_LEVEL;
 
   const phaseConfigs = {
     box: [
@@ -184,29 +194,61 @@ export default function FlowStudio() {
   // ========================================================
   const [worryText, setWorryText] = useState('');
   const [isCrushing, setIsCrushing] = useState(false);
-  const [showCrushFeedback, setShowCrushFeedback] = useState(false);
+  const [ashParticles, setAshParticles] = useState([]);
+  const [emojiParticles, setEmojiParticles] = useState([]);
+  const [isShockwaveActive, setIsShockwaveActive] = useState(false);
+  const [isCardShaking, setIsCardShaking] = useState(false);
+
+  const BURST_EMOJIS = ['💥', '🔥', '✨', '⚡', '💫'];
 
   const handleCrush = () => {
     if (!worryText.trim() || isCrushing) return;
     setIsCrushing(true);
 
-    try {
-      confetti({
-        particleCount: 35,
-        spread: 70,
-        origin: { y: 0.8 },
-        colors: ['#ba1a1a', '#ffdad6', '#7f543d', '#303032'],
-      });
-    } catch {
-      // Confetti is decorative; the interaction remains available.
-    }
+    // Brief wind-up shake before the actual burst, then trigger the
+    // shockwave + debris + card rumble together for a punchier payoff.
+    window.setTimeout(() => {
+      setAshParticles(
+        Array.from({ length: 26 }, (_, index) => {
+          const angle = (index / 26) * Math.PI * 2 + Math.random() * 0.4;
+          const distance = 70 + Math.random() * 110;
+          return {
+            id: index,
+            size: 3 + Math.random() * 7,
+            delay: `${Math.random() * 0.06}s`,
+            duration: `${0.55 + Math.random() * 0.35}s`,
+            dx: `${Math.cos(angle) * distance}px`,
+            dy: `${Math.sin(angle) * distance}px`,
+            spin: `${(Math.random() - 0.5) * 720}deg`,
+          };
+        })
+      );
+      setEmojiParticles(
+        Array.from({ length: 7 }, (_, index) => {
+          const angle = (index / 7) * Math.PI * 2 + Math.random() * 0.5;
+          const distance = 55 + Math.random() * 70;
+          return {
+            id: index,
+            emoji: BURST_EMOJIS[index % BURST_EMOJIS.length],
+            delay: `${Math.random() * 0.05}s`,
+            duration: `${0.6 + Math.random() * 0.3}s`,
+            dx: `${Math.cos(angle) * distance}px`,
+            dy: `${Math.sin(angle) * distance}px`,
+          };
+        })
+      );
+      setIsShockwaveActive(true);
+      setIsCardShaking(true);
 
-    setTimeout(() => {
-      setWorryText('');
-      setIsCrushing(false);
-      setShowCrushFeedback(true);
-      setTimeout(() => setShowCrushFeedback(false), 4500);
-    }, 850);
+      window.setTimeout(() => setIsCardShaking(false), 400);
+      window.setTimeout(() => {
+        setWorryText('');
+        setIsCrushing(false);
+        setAshParticles([]);
+        setEmojiParticles([]);
+        setIsShockwaveActive(false);
+      }, 750);
+    }, 260);
   };
 
   // Wrapper for task toggle with floating XP banner
@@ -237,6 +279,43 @@ export default function FlowStudio() {
   };
 
   const completedCount = microTasks.filter((t) => t.completed).length;
+
+  // Groups real task-completion timestamps into daily buckets over the last
+  // 7 days so the "Focus Activity This Week" chart reflects actual usage
+  // instead of a fixed mock-up. Combines the current session's local log
+  // (works for guests too) with server-synced completions for logged-in
+  // users, de-duplicated by completion id so nothing is double-counted.
+  const weeklyFocusActivity = (() => {
+    const DAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const seenIds = new Set();
+    const allCompletions = [];
+    weeklyTaskCompletions.forEach((entry) => {
+      if (entry.id && seenIds.has(entry.id)) return;
+      if (entry.id) seenIds.add(entry.id);
+      allCompletions.push({ xp: entry.xp, completedAt: entry.completedAt });
+    });
+    taskCompletionLog.forEach((entry) => {
+      allCompletions.push({ xp: entry.xp, completedAt: entry.completedAt });
+    });
+
+    const today = new Date();
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (6 - index));
+      return { key: date.toDateString(), label: DAY_LABELS[date.getDay()], xp: 0, isToday: index === 6 };
+    });
+    const dayByKey = new Map(days.map((day) => [day.key, day]));
+
+    allCompletions.forEach(({ xp, completedAt }) => {
+      const key = new Date(completedAt).toDateString();
+      const day = dayByKey.get(key);
+      if (day) day.xp += xp || 0;
+    });
+
+    return days;
+  })();
+  const maxWeeklyXp = Math.max(1, ...weeklyFocusActivity.map((day) => day.xp));
+  const hasWeeklyActivity = weeklyFocusActivity.some((day) => day.xp > 0);
 
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 gap-6 pb-28">
@@ -269,19 +348,19 @@ export default function FlowStudio() {
               <span className="text-xs font-bold uppercase tracking-widest text-primary">Zona Nyaman Aktif</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-on-surface">
-              Fase Fokus Nyantai • 14:22 Sesi Berjalan
+              Fase Fokus Nyantai
             </h1>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-start md:justify-end">
-          <div className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]">
-            <span className="material-symbols-outlined text-[18px]">bolt</span>
-            <span className="text-xs font-bold">Energy Level: 84% Stabil</span>
+          <div className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title={`Total ${lifetimeXp} XP sepanjang waktu`}>
+            <span className="material-symbols-outlined text-[18px]">military_tech</span>
+            <span className="text-xs font-bold">Level {calmLevel} • {xpIntoCurrentLevel}/{XP_PER_LEVEL} XP</span>
           </div>
-          <div className="bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]">
+          <div className="bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title="XP dari sesi yang sedang berjalan">
             <span className="material-symbols-outlined text-[18px]">battery_charging_full</span>
-            <span className="text-xs font-bold">+{totalXp} XP Ketenangan</span>
+            <span className="text-xs font-bold">{totalXp} XP Sesi Ini</span>
           </div>
         </div>
       </div>
@@ -412,12 +491,12 @@ export default function FlowStudio() {
             </div>
           </div>
 
-          {/* Card 2: Binaural & Fun Soundscapes */}
-          <div className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4">
+          {/* Card 2: Fun Soundscapes */}
+          <div id="fun-soundscapes" className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary text-[24px]">headphones</span>
-                <h2 className="text-base sm:text-lg font-bold text-on-surface">Binaural &amp; Fun Soundscapes</h2>
+                <h2 className="text-base sm:text-lg font-bold text-on-surface">Fun Soundscapes</h2>
               </div>
               <span className="text-xs text-on-surface-variant font-medium">Spatial 432Hz</span>
             </div>
@@ -512,7 +591,7 @@ export default function FlowStudio() {
           </div>
 
           {/* Card 3: Bakar & Hancurkan Pikiran Negatif (Crush the Worry) */}
-          <div className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4 relative overflow-hidden">
+          <div className={`bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4 relative overflow-hidden ${isCardShaking ? 'animate-card-rumble' : ''}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-error text-[24px]">local_fire_department</span>
@@ -537,32 +616,70 @@ export default function FlowStudio() {
                 onChange={(e) => setWorryText(e.target.value)}
                 placeholder="Contoh: Takut kerjaan ini dinilai jelek sama tim, ngerasa gak sanggup selesaiin deadline..."
                 className={`w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/60 rounded-xl p-4 text-xs sm:text-sm focus:outline-none focus:bg-surface-container resize-none transition-all ${
-                  isCrushing ? 'animate-paper-crush' : ''
+                  isShockwaveActive ? 'animate-worry-explode' : isCrushing ? 'animate-worry-windup' : ''
                 }`}
               />
+              {isShockwaveActive && (
+                <>
+                  <span className="absolute inset-0 rounded-xl bg-error/30 animate-explosion-flash pointer-events-none" aria-hidden="true" />
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+                    <span className="w-10 h-10 rounded-full border-4 border-error animate-shockwave-ring" />
+                  </span>
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+                    <span className="w-10 h-10 rounded-full border-2 border-amber-400 animate-shockwave-ring" style={{ animationDelay: '0.08s' }} />
+                  </span>
+                </>
+              )}
+              {ashParticles.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                  {ashParticles.map((particle) => (
+                    <span
+                      key={particle.id}
+                      className="absolute left-1/2 top-1/2 rounded-full bg-gradient-to-br from-amber-300 via-error to-error-container animate-explosion-particle"
+                      style={{
+                        width: `${particle.size}px`,
+                        height: `${particle.size}px`,
+                        animationDelay: particle.delay,
+                        animationDuration: particle.duration,
+                        '--dx': particle.dx,
+                        '--dy': particle.dy,
+                        '--spin': particle.spin,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              {emojiParticles.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                  {emojiParticles.map((particle) => (
+                    <span
+                      key={particle.id}
+                      className="absolute left-1/2 top-1/2 text-lg animate-emoji-burst"
+                      style={{
+                        animationDelay: particle.delay,
+                        animationDuration: particle.duration,
+                        '--dx': particle.dx,
+                        '--dy': particle.dy,
+                      }}
+                    >
+                      {particle.emoji}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-1.5 text-on-surface-variant text-xs">
-                <span className="material-symbols-outlined text-[16px]">lock_reset</span>
-                <span>Teks tidak disimpan di server mana pun.</span>
-              </div>
+            <div className="flex items-center justify-end flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handleCrush}
                 disabled={!worryText.trim() || isCrushing}
                 className="px-6 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <span>{isCrushing ? 'Meremas...' : 'Remas & Musnahkan!'}</span>
-                <span className="text-base">💥</span>
+                <span>{isShockwaveActive ? 'BOOM! 💥' : isCrushing ? 'Bersiap...' : 'Remas & Musnahkan!'}</span>
+                <span className="text-base">{isCrushing ? '🔥' : '💥'}</span>
               </button>
             </div>
-
-            {showCrushFeedback && (
-              <div className="w-full bg-primary-container text-on-primary-container p-3 rounded-xl text-center text-xs font-bold animate-fadeIn shadow-xs">
-                ✨ Pluff! Pikiran itu sudah terlepas. Kamu bebas melangkah lagi!
-              </div>
-            )}
           </div>
         </div>
 
@@ -583,11 +700,6 @@ export default function FlowStudio() {
                 <h2 className="text-2xl sm:text-3xl font-bold text-on-surface">
                   Misi 5 Menit {authUser?.name || 'Teman'}!
                 </h2>
-              </div>
-              <div className="bg-secondary-container text-on-secondary-container px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto shadow-[0_2px_0_#121214]">
-                <span>Overwhelm Terdeteksi</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                <span>Dipecah Mini 🎯</span>
               </div>
             </div>
 
@@ -763,8 +875,10 @@ export default function FlowStudio() {
                         {microTasks[1].completed ? 'Quest Selesai' : activeMissionIndex === 1 ? 'Quest Sedang Berjalan' : 'Terkunci • Selesaikan Misi 1'}
                       </span>
                     </div>
-                    <span className="bg-tertiary text-on-tertiary px-3 py-0.5 rounded-full text-xs font-bold shadow-xs">
-                      Misi #2
+                    <span className="bg-tertiary text-on-tertiary px-3 py-0.5 rounded-full text-xs font-bold shadow-xs flex items-center gap-1">
+                      <span>Misi #2</span>
+                      <span className="opacity-80">•</span>
+                      <span>+{microTasks[1].xp || 20} XP</span>
                     </span>
                   </div>
 
@@ -833,6 +947,7 @@ export default function FlowStudio() {
                     <div>
                       <span className={`text-xs text-on-surface-variant ${microTasks[2].completed ? 'line-through' : ''}`}>
                         {microTasks[2].completed ? 'Misi 3 • Selesai' : activeMissionIndex === 2 ? 'Misi 3 • Quest Aktif' : 'Misi 3 • Terkunci'}
+                        {' • '}+{microTasks[2].xp || 15} XP
                       </span>
                       <h3 className={`text-xs sm:text-sm font-bold text-on-surface ${microTasks[2].completed ? 'line-through' : ''}`}>
                         {microTasks[2].action}
@@ -855,7 +970,7 @@ export default function FlowStudio() {
             <div className="bg-secondary-container/40 rounded-2xl p-4 flex items-center gap-3 mt-1 shadow-xs">
               <span className="text-2xl shrink-0">🚀</span>
               <p className="text-xs sm:text-sm text-on-surface font-medium leading-relaxed">
-                <strong>Momentum &gt; Perfeksionisme!</strong> 3 menit gerak jauh lebih juara daripada overthinking seharian. Let's squeeze it!
+                <strong>Momentum &gt; Perfeksionisme.</strong> Satu langkah kecil sekarang lebih berarti daripada rencana besar yang tertunda.
               </p>
             </div>
           </div>
@@ -865,84 +980,37 @@ export default function FlowStudio() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[22px]">ssid_chart</span>
-                <span className="text-sm font-bold text-on-surface">Aliran Dopamin Hari Ini</span>
+                <span className="text-sm font-bold text-on-surface">Aktivitas Fokus Minggu Ini</span>
               </div>
               <span className="text-xs font-bold text-primary">
-                {completedCount >= 3 ? 'Semua Misi Tuntas 🔥' : 'Fokus Berkelanjutan'}
+                {completedCount >= 3 ? 'Semua Misi Tuntas 🔥' : hasWeeklyActivity ? 'Fokus Berkelanjutan' : 'Belum Ada Aktivitas'}
               </span>
             </div>
 
-            {/* Inline SVG Mini Bar Graph for Focus Pulses */}
-            <div className="w-full h-24 flex items-end justify-between gap-2 pt-4 px-2">
-              <div className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                <div className="w-full bg-primary-container rounded-t-lg h-12 group-hover:h-16 transition-all group-hover:bg-primary"></div>
-                <span className="text-[10px] text-on-surface-variant font-mono">09:00</span>
+            {/* Real bar graph built from actual task-completion timestamps over the last 7 days */}
+            {hasWeeklyActivity ? (
+              <div className="w-full h-24 flex items-end justify-between gap-2 pt-4 px-2">
+                {weeklyFocusActivity.map((day) => (
+                  <div key={day.key} className="flex-1 flex flex-col items-center gap-1 group cursor-default">
+                    <div
+                      className={`w-full rounded-t-lg transition-all ${day.isToday ? 'bg-primary shadow-sm' : 'bg-primary-container group-hover:bg-primary'}`}
+                      style={{ height: `${day.xp > 0 ? Math.max(12, (day.xp / maxWeeklyXp) * 80) : 4}px` }}
+                      title={`${day.xp} XP pada ${day.label}`}
+                    ></div>
+                    <span className={`text-[10px] font-mono ${day.isToday ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
+                      {day.isToday ? 'Hari ini' : day.label}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                <div className="w-full bg-secondary-container rounded-t-lg h-8 group-hover:h-14 transition-all group-hover:bg-secondary"></div>
-                <span className="text-[10px] text-on-surface-variant font-mono">10:30</span>
+            ) : (
+              <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-center">
+                <span className="text-xs text-on-surface-variant font-medium">Belum ada misi yang diselesaikan minggu ini.</span>
+                <span className="text-[11px] text-on-surface-variant/70">Grafik ini akan terisi begitu kamu menandai misi selesai.</span>
               </div>
-              <div className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                <div className="w-full bg-tertiary-container rounded-t-lg h-16 group-hover:h-20 transition-all group-hover:bg-tertiary"></div>
-                <span className="text-[10px] text-on-surface-variant font-mono">12:00</span>
-              </div>
-              <div className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                <div className="w-full bg-primary rounded-t-lg h-20 shadow-sm group-hover:scale-105 transition-all"></div>
-                <span className="text-[10px] text-primary font-bold">Sekarang</span>
-              </div>
-              <div className="flex-1 flex flex-col items-center gap-1 opacity-40 group cursor-pointer">
-                <div className="w-full bg-surface-container-highest rounded-t-lg h-6 group-hover:h-10 transition-all"></div>
-                <span className="text-[10px] text-on-surface-variant font-mono">15:00</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {/* FLOATING MINI DOCK / INTERACTIVE CONTROLS */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-inverse-surface text-inverse-on-surface px-6 py-3.5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.25)] flex items-center gap-4 sm:gap-6 border border-inverse-on-surface/15 backdrop-blur-md">
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 100, behavior: 'smooth' })}
-          className="flex items-center gap-2 hover:text-primary-fixed active:scale-95 transition-all cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[20px]">self_improvement</span>
-          <span className="text-xs font-bold hidden sm:inline">Tarik Napas Cepat</span>
-        </button>
-
-        <div className="w-px h-4 bg-inverse-on-surface/30"></div>
-
-        <button
-          type="button"
-          onClick={handleCustomMicroAction}
-          className="flex items-center gap-2 hover:text-secondary-fixed active:scale-95 transition-all cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[20px]">add_task</span>
-          <span className="text-xs font-bold hidden sm:inline">+ Misi 2-Mnt</span>
-        </button>
-
-        <div className="w-px h-4 bg-inverse-on-surface/30"></div>
-
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          className="flex items-center gap-2 hover:text-primary-fixed active:scale-95 transition-all cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[20px]">spa</span>
-          <span className="text-xs font-bold hidden sm:inline">Mood Garden 🌿</span>
-        </button>
-
-        <div className="w-px h-4 bg-inverse-on-surface/30"></div>
-
-        <button
-          type="button"
-          onClick={() => void saveCurrentSession()}
-          className="flex items-center gap-2 hover:text-primary-fixed active:scale-95 transition-all cursor-pointer"
-          title="Simpan ringkasan sesi"
-        >
-          <span className="material-symbols-outlined text-[20px]">save</span>
-          <span className="text-xs font-bold hidden sm:inline">{vaultSavedNotice ? 'Tersimpan' : 'Simpan Sesi'}</span>
-        </button>
       </div>
     </div>
   );

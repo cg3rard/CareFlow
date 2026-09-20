@@ -59,6 +59,18 @@ export function FlowProvider({ children }) {
   const [vaultSavedNotice, setVaultSavedNotice] = useState(false);
   const [todayMetric, setTodayMetric] = useState(null);
   const [weeklyMetrics, setWeeklyMetrics] = useState([]);
+  // Real timestamps of each completed micro-task this session, used to plot
+  // an honest "focus activity" chart instead of hardcoded fake data.
+  // taskCompletionLog covers the current browser session (works for guests
+  // too); weeklyTaskCompletions is hydrated from the server for logged-in
+  // users so the chart spans the last 7 days, not just this session.
+  const [taskCompletionLog, setTaskCompletionLog] = useState([]);
+  const [weeklyTaskCompletions, setWeeklyTaskCompletions] = useState([]);
+  // Lifetime total XP persisted server-side (SUM of every task_completions
+  // row for this user). Unlike totalXp (per-session, resets on reload),
+  // this is what the Flow Studio Level badge is based on so it survives
+  // logout/reload.
+  const [lifetimeXp, setLifetimeXp] = useState(0);
   const activeMissionIndex = microTasks.findIndex((task) => !task.completed);
 
   const hasSavedToday = useMemo(() => {
@@ -105,6 +117,7 @@ export function FlowProvider({ children }) {
         const profile = await request('/sessions');
         setVaultEntries((profile.sessions || []).map(sessionToVaultEntry));
         applyStreak(profile.streakDays || 0);
+        setLifetimeXp(profile.lifetimeXp || 0);
         setAuthUser((current) => (current ? { ...current, ...profile } : current));
       } else {
         setVaultEntries(await loadDecryptedVault());
@@ -114,9 +127,10 @@ export function FlowProvider({ children }) {
     }
   };
 
-  // Loads the last 7 days of sleep/stress rows so the Yes/No Quiz can be
-  // locked once today's entry is complete, and so the weekly average can be
-  // shown on the Weekly Mood Triage Matrix.
+  // Loads up to the last 30 days of sleep/stress rows so the Yes/No Quiz can
+  // be locked once today's entry is complete, so the weekly average can be
+  // shown on the Weekly Mood Triage Matrix, and so the Mood Garden's Monthly
+  // Mood Summary (sleep/stress/streak) has real data for the current month.
   const refreshTodayMetric = async () => {
     if (!token()) {
       setTodayMetric(null);
@@ -134,6 +148,21 @@ export function FlowProvider({ children }) {
     }
   };
 
+  // Loads the last 7 days of real task-completion timestamps for the
+  // "Focus Activity This Week" chart in Flow Studio.
+  const refreshWeeklyTaskCompletions = async () => {
+    if (!token()) {
+      setWeeklyTaskCompletions([]);
+      return;
+    }
+    try {
+      const { completions } = await request('/task-completions');
+      setWeeklyTaskCompletions(completions || []);
+    } catch {
+      setWeeklyTaskCompletions([]);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     const restoreSession = async () => {
@@ -148,6 +177,7 @@ export function FlowProvider({ children }) {
         if (mounted) {
           setAuthUser(profile);
           setStreakDays(profile.streakDays || 0);
+          setLifetimeXp(profile.lifetimeXp || 0);
           setGuestAllowed(false);
         }
       } catch {
@@ -167,6 +197,7 @@ export function FlowProvider({ children }) {
     if (!isAuthLoading && (authUser || guestAllowed)) {
       void refreshStoredSessions();
       void refreshTodayMetric();
+      void refreshWeeklyTaskCompletions();
     }
   }, [isAuthLoading, authUser?.id, guestAllowed]);
 
@@ -177,6 +208,8 @@ export function FlowProvider({ children }) {
     sessionStorage.removeItem(GUEST_KEY);
     setTodayMetric(null);
     setWeeklyMetrics([]);
+    setWeeklyTaskCompletions([]);
+    setLifetimeXp(result.user?.lifetimeXp || 0);
     setAuthUser({ ...result.user, streakDays: result.streakDays || 0 });
     setStreakDays(result.streakDays || 0);
     setGuestAllowed(false);
@@ -188,6 +221,8 @@ export function FlowProvider({ children }) {
     sessionStorage.setItem(GUEST_KEY, 'true');
     setTodayMetric(null);
     setWeeklyMetrics([]);
+    setWeeklyTaskCompletions([]);
+    setLifetimeXp(0);
     setAuthUser(null);
     setStreakDays(0);
     setGuestAllowed(true);
@@ -208,6 +243,8 @@ export function FlowProvider({ children }) {
     sessionStorage.removeItem(TOKEN_KEY);
     setTodayMetric(null);
     setWeeklyMetrics([]);
+    setWeeklyTaskCompletions([]);
+    setLifetimeXp(0);
     setAuthUser(null);
     setStreakDays(0);
     setGuestAllowed(false);
@@ -227,7 +264,8 @@ export function FlowProvider({ children }) {
     audioEngine.setVolume(nextVolume);
   };
 
-  const processTriage = async () => {
+  const processTriage = async (options = {}) => {
+    const { shareWithPsychologist = false } = options;
     setIsProcessingSlice(true);
     try {
       const result = await sliceTaskWithHybridFallback(triageData.content, triageData.tag, triageData.panicLevel);
@@ -240,7 +278,7 @@ export function FlowProvider({ children }) {
         try {
           await request('/declutter', {
             method: 'POST',
-            body: JSON.stringify({ content: triageData.content, tag: triageData.tag, panicLevel: triageData.panicLevel }),
+            body: JSON.stringify({ content: triageData.content, tag: triageData.tag, panicLevel: triageData.panicLevel, shareWithPsychologist }),
           });
         } catch {
           // Cognitive de-clutter logging is best-effort; it must not block the triage flow.
@@ -254,18 +292,37 @@ export function FlowProvider({ children }) {
   };
 
   const toggleTaskDone = (taskId) => {
-    setMicroTasks((previous) => {
-      const activeIndex = previous.findIndex((task) => !task.completed);
-      if (activeIndex < 0 || previous[activeIndex]?.id !== taskId) return previous;
-      const activeTask = previous[activeIndex];
-      setTotalXp((xp) => xp + (activeTask.xp || 15));
-      try {
-        confetti({ particleCount: 35, spread: 55, origin: { y: 0.7 }, colors: ['#2c6b27', '#b8ffa9', '#fec5a7'] });
-      } catch {
-        // Confetti is only decorative; completing the task must still work.
-      }
-      return previous.map((task, index) => index === activeIndex ? { ...task, completed: true } : task);
-    });
+    // IMPORTANT: the updater function passed to setMicroTasks must stay pure
+    // (no side effects). React StrictMode intentionally invokes state
+    // updater functions twice in development to catch impurities — if XP
+    // awarding, API calls, or confetti live inside the updater, they get
+    // double-invoked too (this was the root cause of XP being awarded 2x).
+    const activeTask = microTasks.find((task) => !task.completed);
+    if (!activeTask || activeTask.id !== taskId) return;
+
+    setMicroTasks((previous) => previous.map((task) => task.id === taskId ? { ...task, completed: true } : task));
+
+    const xpEarned = activeTask.xp || 15;
+    setTotalXp((xp) => xp + xpEarned);
+    const completedAt = new Date().toISOString();
+    setTaskCompletionLog((log) => [...log, { taskId, xp: xpEarned, completedAt }]);
+    if (token()) {
+      request('/task-completions', { method: 'POST', body: JSON.stringify({ xp: xpEarned }) })
+        .then((completion) => {
+          if (completion) {
+            setWeeklyTaskCompletions((previousCompletions) => [...previousCompletions, completion]);
+            setLifetimeXp((xp) => xp + xpEarned);
+          }
+        })
+        .catch(() => {
+          // Best-effort: the local chart still works from taskCompletionLog even if this fails.
+        });
+    }
+    try {
+      confetti({ particleCount: 35, spread: 55, origin: { y: 0.7 }, colors: ['#2c6b27', '#b8ffa9', '#fec5a7'] });
+    } catch {
+      // Confetti is only decorative; completing the task must still work.
+    }
   };
 
   const sliceTaskSmaller = (taskId) => {
@@ -378,11 +435,11 @@ export function FlowProvider({ children }) {
     authenticate, continueAsGuest, startLogin, logout,
     triageData, setTriageData, processTriage, isProcessingSlice,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
-    microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp,
+    microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
     quizLoggedToday, todayMetric, weeklyMetrics, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

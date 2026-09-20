@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 export async function sliceTaskWithHybridFallback(content, tag, panicLevel) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 22000); // 22s timeout (Gemini reasoning models can take ~10-15s)
 
     const res = await fetch(`${API_BASE_URL}/slice`, {
       method: 'POST',

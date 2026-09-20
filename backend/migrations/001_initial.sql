@@ -45,8 +45,20 @@ CREATE TABLE IF NOT EXISTS cognitive_declutter_entries (
   tag VARCHAR(80) NOT NULL,
   panic_level SMALLINT NOT NULL CHECK (panic_level BETWEEN 1 AND 5),
   overwhelm_level VARCHAR(20) NOT NULL,
+  share_with_psychologist BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS declutter_entries_user_created_at_idx ON cognitive_declutter_entries (user_id, created_at DESC);
+
+-- Real timestamps of each completed Flow Studio micro-task, powering the
+-- "Focus Activity" chart with genuine usage data instead of a mock-up.
+CREATE TABLE IF NOT EXISTS task_completions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  xp INTEGER NOT NULL CHECK (xp >= 0),
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS task_completions_user_completed_at_idx ON task_completions (user_id, completed_at DESC);
 
