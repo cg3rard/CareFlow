@@ -22,6 +22,7 @@ export default function GentleTriage() {
     hasSavedToday,
     quizLoggedToday,
     todayMetric,
+    weeklyMetrics,
     logSleepHours,
     logQuizStress,
     triageData,
@@ -50,14 +51,20 @@ export default function GentleTriage() {
   const [metricLogError, setMetricLogError] = useState('');
 
   // The quiz (sleep check-in + Yes/No questions) is limited to one
-  // completion per calendar day. If today's entry already exists on the
-  // server (or, for guests, in localStorage), lock the quiz immediately.
+  // completion per calendar day. Hydrate local state from the server so a
+  // page refresh resumes from the right step instead of losing progress:
+  // - If today's sleep hours are already on the server, skip the sleep
+  //   check-in step and jump straight to the Yes/No questions.
+  // - Only fully lock the quiz once the stress score is also recorded.
   useEffect(() => {
-    if (quizLoggedToday) {
+    if (todayMetric?.sleepHours != null) {
+      setSleepHours(todayMetric.sleepHours);
       setSleepLogged(true);
+    }
+    if (quizLoggedToday) {
       setIsQuizCompleteModalOpen(false);
     }
-  }, [quizLoggedToday]);
+  }, [quizLoggedToday, todayMetric]);
 
   const handleLogSleepHours = () => {
     if (quizLoggedToday || isQuizAnswerConfirming) return;
@@ -132,11 +139,25 @@ export default function GentleTriage() {
   const handleGoToFlowStudio = () => {
     setIsQuizCompleteModalOpen(false);
     setStep(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const quizCompleted = quizAnswers.length === quizQuestions.length || quizLoggedToday;
   const lastQuizAnswer = quizAnswers[quizAnswers.length - 1];
-  const displaySleepHours = sleepLogged ? sleepHours : todayMetric?.sleepHours ?? null;
+
+  // Weekly Mood Triage Matrix shows the average sleep duration across the
+  // last 7 days rather than a single day's value. Today's freshly-logged
+  // value (if not yet reflected in weeklyMetrics) is merged in so the
+  // average updates immediately after logging.
+  const weeklySleepSamples = (() => {
+    const byDate = new Map(weeklyMetrics.filter((m) => m.sleepHours != null).map((m) => [m.metricDate, m.sleepHours]));
+    if (sleepHours != null && todayMetric) byDate.set(todayMetric.metricDate, sleepHours);
+    return Array.from(byDate.values());
+  })();
+  const weeklyAverageSleepHours = weeklySleepSamples.length > 0
+    ? Math.round((weeklySleepSamples.reduce((sum, value) => sum + value, 0) / weeklySleepSamples.length) * 10) / 10
+    : null;
+  const displaySleepHours = weeklyAverageSleepHours ?? (sleepHours ?? todayMetric?.sleepHours ?? null);
   const displayStressScore = quizAnswers.length === quizQuestions.length
     ? estimateStressFromAnswers(quizAnswers, quizQuestions)
     : todayMetric?.stressScore ?? null;
@@ -154,6 +175,7 @@ export default function GentleTriage() {
   const handleZenBell = () => {
     setBellActive((prev) => !prev);
     setBellRung(true);
+    audioEngine.playBellChime();
     setTimeout(() => setBellRung(false), 2000);
   };
 
@@ -277,7 +299,6 @@ export default function GentleTriage() {
 
   const activeMascotObj = mascots.find((m) => m.id === selectedMascot) || mascots[0];
   const isGuest = !authUser;
-  const metricStatus = isGuest ? 'Mode tamu' : 'Data self-report';
 
   // Cognitive Overwhelm Meter calculation
   const charLength = triageData.content.length;
@@ -429,7 +450,10 @@ export default function GentleTriage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Happy')}
-                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all cursor-pointer tactile-btn ${
+                  disabled={hasSavedToday}
+                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all tactile-btn ${
+                    hasSavedToday ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  } ${
                     selectedMood === 'Happy'
                       ? 'bg-primary-container text-on-primary-container ring-3 ring-primary shadow-[0_4px_0_#121214] scale-105'
                       : 'bg-surface-container text-on-surface hover:bg-primary-container/60 shadow-[0_2px_0_#121214]'
@@ -449,7 +473,10 @@ export default function GentleTriage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Angry')}
-                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all cursor-pointer tactile-btn ${
+                  disabled={hasSavedToday}
+                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all tactile-btn ${
+                    hasSavedToday ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  } ${
                     selectedMood === 'Angry'
                       ? 'bg-secondary-container text-on-secondary-container ring-3 ring-secondary shadow-[0_4px_0_#121214] scale-105'
                       : 'bg-surface-container text-on-surface hover:bg-secondary-container/60 shadow-[0_2px_0_#121214]'
@@ -469,7 +496,10 @@ export default function GentleTriage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Sleepy')}
-                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all cursor-pointer tactile-btn ${
+                  disabled={hasSavedToday}
+                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all tactile-btn ${
+                    hasSavedToday ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  } ${
                     selectedMood === 'Sleepy'
                       ? 'bg-tertiary-fixed-dim text-on-tertiary-fixed ring-3 ring-tertiary shadow-[0_4px_0_#121214] scale-105'
                       : 'bg-surface-container text-on-surface hover:bg-tertiary-fixed-dim/60 shadow-[0_2px_0_#121214]'
@@ -489,7 +519,10 @@ export default function GentleTriage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Bored')}
-                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all cursor-pointer tactile-btn ${
+                  disabled={hasSavedToday}
+                  className={`p-3 rounded-[1.75rem] flex flex-col items-center justify-center gap-2 transition-all tactile-btn ${
+                    hasSavedToday ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  } ${
                     selectedMood === 'Bored'
                       ? 'bg-error-container text-on-error-container ring-3 ring-error shadow-[0_4px_0_#121214] scale-105'
                       : 'bg-surface-container text-on-surface hover:bg-error-container/60 shadow-[0_2px_0_#121214]'
@@ -549,12 +582,9 @@ export default function GentleTriage() {
               <span>Bento Bio-Signals</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-              Daily Mood Triage Matrix
+              Weekly Mood Triage Matrix
             </h2>
           </div>
-          <span className="text-xs text-on-surface-variant font-medium text-right max-w-[220px] sm:max-w-none">
-            {metricStatus} • diisi manual olehmu setiap hari
-          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -570,7 +600,7 @@ export default function GentleTriage() {
                     <span className="text-xs uppercase tracking-wider font-bold">Sleep Duration</span>
                   </div>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-surface-container-lowest/80 text-on-surface font-bold shadow-xs">
-                    {displaySleepHours != null ? 'Self-report' : 'Belum diisi'}
+                    {weeklySleepSamples.length > 0 ? `Rata-rata ${weeklySleepSamples.length} hari` : 'Belum diisi'}
                   </span>
                 </div>
 
@@ -591,7 +621,7 @@ export default function GentleTriage() {
                     <span className="text-3xl sm:text-4xl font-bold tracking-tight">
                       {displaySleepHours != null ? displaySleepHours : '—'}
                     </span>
-                    {displaySleepHours != null && <span className="text-sm font-bold ml-1">jam</span>}
+                    {displaySleepHours != null && <span className="text-sm font-bold ml-1">jam/malam</span>}
                   </div>
                   <span className="text-xs font-bold text-on-secondary-container">
                     {displaySleepHours != null
@@ -612,7 +642,7 @@ export default function GentleTriage() {
                     <span className="material-symbols-outlined text-[20px]">psychology_alt</span>
                     <span className="text-xs uppercase tracking-wider font-bold">Stress Indicator</span>
                   </div>
-                  <span className={`w-2.5 h-2.5 rounded-full ${quizCompleted ? (stressScore >= 70 ? 'bg-red-500' : stressScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-on-tertiary-container/35'}`}></span>
+                  <span className={`w-2.5 h-2.5 rounded-full ${stressScore != null ? (stressScore >= 70 ? 'bg-red-500' : stressScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-on-tertiary-container/35'}`}></span>
                 </div>
 
                 {/* Graduated Step Bar Chart */}
@@ -628,12 +658,12 @@ export default function GentleTriage() {
                 <div className="flex items-baseline justify-between">
                   <div>
                     <span className="text-3xl sm:text-4xl font-bold tracking-tight">
-                      {quizCompleted ? stressScore : '—'}
+                      {stressScore != null ? stressScore : '—'}
                     </span>
-                    {quizCompleted && <span className="text-sm font-bold ml-1">/100</span>}
+                    {stressScore != null && <span className="text-sm font-bold ml-1">/100</span>}
                   </div>
                   <span className="text-xs font-bold text-on-tertiary-container">
-                    {quizCompleted ? stressInfo.label : 'Isi di Yes/No Quiz →'}
+                    {stressScore != null ? stressInfo.label : 'Isi di Yes/No Quiz →'}
                   </span>
                 </div>
               </div>
@@ -683,7 +713,7 @@ export default function GentleTriage() {
               )}
 
               {quizLoggedToday ? (
-                <div className="my-6 flex flex-col items-center text-center gap-2">
+                <div className="my-6 flex flex-col items-center text-center gap-3">
                   <span className="material-symbols-outlined text-4xl text-on-primary-container">task_alt</span>
                   <h3 className="text-lg sm:text-xl font-bold text-on-primary-container tracking-tight">
                     Check-in hari ini sudah diisi
@@ -691,6 +721,14 @@ export default function GentleTriage() {
                   <p className="text-sm text-on-primary-container/80 font-medium max-w-xs">
                     Yes/No Quiz hanya bisa diisi sekali sehari. Sampai jumpa besok untuk check-in berikutnya!
                   </p>
+                  <button
+                    type="button"
+                    onClick={handleGoToFlowStudio}
+                    className="mt-1 flex items-center justify-center gap-2 rounded-full bg-inverse-surface px-6 py-3 text-sm font-bold text-inverse-on-surface shadow-[0_3px_0_#121214] transition-all hover:opacity-90 active:translate-y-1 active:shadow-none"
+                  >
+                    <span>Ke Flow Studio</span>
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+                  </button>
                 </div>
               ) : !sleepLogged ? (
                 <>
@@ -836,7 +874,7 @@ export default function GentleTriage() {
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-secondary"></span>
                   <span className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">
-                    Cognitive De-clutter
+                    Bebaskan Pikiran
                   </span>
                 </div>
                 <div className="flex items-center gap-1">

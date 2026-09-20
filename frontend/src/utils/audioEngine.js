@@ -241,6 +241,46 @@ class ProceduralSoundscapeEngine {
     }
   }
 
+  // A clean, soft two-tone notification chime for the "Zen Chime" button —
+  // a quick high "tap" followed by a rounder "ring", each low-pass filtered
+  // and given a smooth attack/decay so it sounds crisp rather than harsh.
+  playBellChime() {
+    try {
+      this.init();
+      const startAt = this.ctx.currentTime;
+      const tones = [
+        { frequency: 1318.51, offset: 0, gain: 0.05, duration: 0.35 }, // E6 "tap"
+        { frequency: 987.77, offset: 0.09, gain: 0.065, duration: 0.85 }, // B5 "ring"
+      ];
+
+      tones.forEach(({ frequency, offset, gain, duration }) => {
+        const noteStart = startAt + offset;
+        const oscillator = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const noteGain = this.ctx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, noteStart);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(3200, noteStart);
+        filter.Q.setValueAtTime(0.4, noteStart);
+
+        noteGain.gain.setValueAtTime(0.0001, noteStart);
+        noteGain.gain.linearRampToValueAtTime(gain, noteStart + 0.02);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, noteStart + duration);
+
+        oscillator.connect(filter);
+        filter.connect(noteGain);
+        noteGain.connect(this.masterGain);
+        oscillator.start(noteStart);
+        oscillator.stop(noteStart + duration + 0.02);
+      });
+    } catch {
+      // Audio is optional and must never interrupt the notification button.
+    }
+  }
+
   setVolume(val) {
     this.volume = Math.max(0, Math.min(1, val));
     if (this.masterGain && this.ctx) {

@@ -58,6 +58,7 @@ export function FlowProvider({ children }) {
   const [isVaultLoading, setIsVaultLoading] = useState(false);
   const [vaultSavedNotice, setVaultSavedNotice] = useState(false);
   const [todayMetric, setTodayMetric] = useState(null);
+  const [weeklyMetrics, setWeeklyMetrics] = useState([]);
   const activeMissionIndex = microTasks.findIndex((task) => !task.completed);
 
   const hasSavedToday = useMemo(() => {
@@ -76,7 +77,7 @@ export function FlowProvider({ children }) {
 
   const quizLoggedToday = useMemo(() => {
     const today = jakartaToday();
-    if (token()) return todayMetric?.metricDate === today;
+    if (token()) return todayMetric?.metricDate === today && todayMetric?.stressScore != null;
     return localStorage.getItem(GUEST_QUIZ_KEY) === today;
   }, [todayMetric]);
 
@@ -113,16 +114,23 @@ export function FlowProvider({ children }) {
     }
   };
 
-  // Loads today's sleep/stress row (if any) so the Yes/No Quiz can be locked
-  // once it has already been filled in today.
+  // Loads the last 7 days of sleep/stress rows so the Yes/No Quiz can be
+  // locked once today's entry is complete, and so the weekly average can be
+  // shown on the Weekly Mood Triage Matrix.
   const refreshTodayMetric = async () => {
-    if (!token()) return;
+    if (!token()) {
+      setTodayMetric(null);
+      setWeeklyMetrics([]);
+      return;
+    }
     try {
       const { metrics } = await request('/metrics/daily');
       const today = jakartaToday();
+      setWeeklyMetrics(metrics || []);
       setTodayMetric((metrics || []).find((metric) => metric.metricDate === today) || null);
     } catch {
-      // Non-critical: the quiz simply won't show as locked if this fails.
+      setTodayMetric(null);
+      setWeeklyMetrics([]);
     }
   };
 
@@ -167,6 +175,8 @@ export function FlowProvider({ children }) {
     const result = await request(`/auth/${mode}`, { method: 'POST', body: JSON.stringify(form) });
     sessionStorage.setItem(TOKEN_KEY, result.token);
     sessionStorage.removeItem(GUEST_KEY);
+    setTodayMetric(null);
+    setWeeklyMetrics([]);
     setAuthUser({ ...result.user, streakDays: result.streakDays || 0 });
     setStreakDays(result.streakDays || 0);
     setGuestAllowed(false);
@@ -176,6 +186,8 @@ export function FlowProvider({ children }) {
   const continueAsGuest = () => {
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.setItem(GUEST_KEY, 'true');
+    setTodayMetric(null);
+    setWeeklyMetrics([]);
     setAuthUser(null);
     setStreakDays(0);
     setGuestAllowed(true);
@@ -194,6 +206,8 @@ export function FlowProvider({ children }) {
       // Local cleanup still safely ends this browser session.
     }
     sessionStorage.removeItem(TOKEN_KEY);
+    setTodayMetric(null);
+    setWeeklyMetrics([]);
     setAuthUser(null);
     setStreakDays(0);
     setGuestAllowed(false);
@@ -282,10 +296,18 @@ export function FlowProvider({ children }) {
 
   // Persists today's sleep duration immediately (independent of "Simpan Sesi"),
   // so the value is safely stored in daily_metrics as soon as the user logs it.
+  const upsertWeeklyMetric = (metric) => {
+    setWeeklyMetrics((previous) => {
+      const others = previous.filter((entry) => entry.metricDate !== metric.metricDate);
+      return [metric, ...others];
+    });
+  };
+
   const logSleepHours = async (hours) => {
     if (token()) {
       const metric = await request('/metrics/daily', { method: 'POST', body: JSON.stringify({ sleepHours: hours }) });
       setTodayMetric((current) => (current ? { ...current, ...metric } : metric));
+      upsertWeeklyMetric(metric);
     } else {
       localStorage.setItem(GUEST_QUIZ_KEY, jakartaToday());
     }
@@ -297,6 +319,7 @@ export function FlowProvider({ children }) {
     if (token()) {
       const metric = await request('/metrics/daily', { method: 'POST', body: JSON.stringify({ stressScore: score, stressLabel: label }) });
       setTodayMetric((current) => (current ? { ...current, ...metric } : metric));
+      upsertWeeklyMetric(metric);
     } else {
       localStorage.setItem(GUEST_QUIZ_KEY, jakartaToday());
     }
@@ -357,9 +380,9 @@ export function FlowProvider({ children }) {
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
-    quizLoggedToday, todayMetric, logSleepHours, logQuizStress,
+    quizLoggedToday, todayMetric, weeklyMetrics, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }
