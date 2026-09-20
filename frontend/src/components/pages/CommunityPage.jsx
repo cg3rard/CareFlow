@@ -194,34 +194,33 @@ export default function CommunityPage() {
 
   return (
     <section className="w-full py-7">
-      {authError && (
-        <p
-          role="alert"
-          className="animate-community-panel mx-auto mt-5 max-w-3xl rounded-2xl bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
-        >
-          {authError}
-        </p>
-      )}
-      {notice && (
-        <div className="animate-community-panel mx-auto mt-5 flex max-w-3xl items-center justify-between gap-3 rounded-2xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container">
-          <span>{notice}</span>
-          <button
-            type="button"
-            onClick={() => setNotice("")}
-            aria-label="Close message"
-            className="community-tap rounded-full p-1 hover:bg-white/30"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
-
       <div className="mt-6 min-h-[calc(100vh-8rem)] w-full lg:pl-[22rem]">
         <CommunitySidebar
           count={communityPosts.length}
           className="h-fit rounded-[2rem] border border-primary-container bg-gradient-to-b from-primary-container via-surface-container-lowest to-surface-container-lowest p-6 shadow-[0_4px_0_#121214] sm:mx-6 lg:fixed lg:top-20 lg:bottom-0 lg:left-0 lg:z-[60] lg:h-[calc(100vh-5rem)] lg:w-[22rem] lg:overflow-hidden lg:rounded-none lg:border-y-0 lg:border-l-0 lg:border-r lg:border-primary-container lg:p-8 lg:shadow-none"
         />
         <main className="mx-auto w-full max-w-5xl min-w-0 space-y-5 px-4 pb-8 sm:px-6 lg:px-10">
+          {authError && (
+            <p
+              role="alert"
+              className="animate-community-panel rounded-2xl bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
+            >
+              {authError}
+            </p>
+          )}
+          {notice && (
+            <div className="animate-community-panel flex items-center justify-between gap-3 rounded-2xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container">
+              <span>{notice}</span>
+              <button
+                type="button"
+                onClick={() => setNotice("")}
+                aria-label="Close message"
+                className="community-tap rounded-full p-1 hover:bg-white/30"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+          )}
           {!feedId && authUser.role === "user" && (
             <PostComposer onPublish={publish} authUser={authUser} />
           )}
