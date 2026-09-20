@@ -84,7 +84,14 @@ export function FlowProvider({ children }) {
 
   const GUEST_QUIZ_KEY = 'careflow_guest_quiz_date';
 
-  const token = () => sessionStorage.getItem(TOKEN_KEY);
+  const token = () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  const migrateSessionToken = () => {
+    const legacyToken = sessionStorage.getItem(TOKEN_KEY);
+    if (legacyToken && !localStorage.getItem(TOKEN_KEY)) {
+      localStorage.setItem(TOKEN_KEY, legacyToken);
+      sessionStorage.removeItem(TOKEN_KEY);
+    }
+  };
   const navigateTo = (nextStep) => {
     const nextPath = nextStep === 'community' ? '/community/' : '/';
     if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
@@ -180,6 +187,7 @@ export function FlowProvider({ children }) {
   useEffect(() => {
     let mounted = true;
     const restoreSession = async () => {
+      migrateSessionToken();
       const currentToken = token();
       if (!currentToken) {
         if (mounted) setGuestAllowed(sessionStorage.getItem(GUEST_KEY) === 'true');
@@ -195,6 +203,7 @@ export function FlowProvider({ children }) {
           setGuestAllowed(false);
         }
       } catch {
+        localStorage.removeItem(TOKEN_KEY);
         sessionStorage.removeItem(TOKEN_KEY);
       } finally {
         if (mounted) setIsAuthLoading(false);
@@ -233,7 +242,8 @@ export function FlowProvider({ children }) {
   const authenticate = async (mode, form) => {
     setAuthError('');
     const result = await request(`/auth/${mode}`, { method: 'POST', body: JSON.stringify(form) });
-    sessionStorage.setItem(TOKEN_KEY, result.token);
+    localStorage.setItem(TOKEN_KEY, result.token);
+    sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(GUEST_KEY);
     setTodayMetric(null);
     setWeeklyMetrics([]);
@@ -247,6 +257,7 @@ export function FlowProvider({ children }) {
   };
 
   const continueAsGuest = () => {
+    localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.setItem(GUEST_KEY, 'true');
     setTodayMetric(null);
@@ -269,6 +280,7 @@ export function FlowProvider({ children }) {
       if (token()) await request('/auth/logout', { method: 'POST' });
     } catch {
     }
+    localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
     setTodayMetric(null);
     setWeeklyMetrics([]);
