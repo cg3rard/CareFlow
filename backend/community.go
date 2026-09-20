@@ -33,6 +33,7 @@ type CommunityPost struct {
 	ID          string    `json:"id"`
 	AuthorID    string    `json:"authorId"`
 	IsAnonymous bool      `json:"isAnonymous"`
+	IsHidden    bool      `json:"isHidden"`
 	TopicTag    string    `json:"topicTag"`
 	Body        string    `json:"body"`
 	MediaMime   string    `json:"mediaMime,omitempty"`
@@ -82,6 +83,10 @@ type CommunityCommentInput struct {
 	Body string `json:"body"`
 }
 
+type CommunityModerationInput struct {
+	IsHidden *bool `json:"isHidden"`
+}
+
 type CommunityCommentView struct {
 	ID         string    `json:"id"`
 	PostID     string    `json:"postId"`
@@ -94,6 +99,7 @@ type CommunityPostView struct {
 	ID          string                 `json:"id"`
 	AuthorName  string                 `json:"authorName"`
 	IsAnonymous bool                   `json:"isAnonymous"`
+	IsHidden    bool                   `json:"isHidden"`
 	TopicTag    string                 `json:"topicTag"`
 	Body        string                 `json:"body"`
 	MediaMime   string                 `json:"mediaMime,omitempty"`
@@ -231,7 +237,7 @@ func (s *Store) communityPostExists(postID string) bool {
 		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 		defer cancel()
 		var exists bool
-		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM community_posts WHERE id=$1)`, postID).Scan(&exists); err != nil {
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM community_posts WHERE id=$1 AND is_hidden=FALSE)`, postID).Scan(&exists); err != nil {
 			return false
 		}
 		return exists
@@ -239,7 +245,7 @@ func (s *Store) communityPostExists(postID string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, post := range s.community.Posts {
-		if post.ID == postID {
+		if post.ID == postID && !post.IsHidden {
 			return true
 		}
 	}
@@ -294,6 +300,110 @@ func (s *Store) recordCommunityShare(userID, postID string) error {
 	return s.saveLocked()
 }
 
+func (s *Store) deleteCommunityPost(userID, postID string) error {
+	if s.db != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+		defer cancel()
+		var authorID string
+		err := s.db.QueryRowContext(ctx, `SELECT author_id FROM community_posts WHERE id=$1`, postID).Scan(&authorID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("post not found")
+		}
+		if err != nil {
+			return err
+		}
+		if authorID != userID {
+			return errors.New("you can only delete your own post")
+		}
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
+		if _, err := tx.ExecContext(ctx, `DELETE FROM community_comments WHERE post_id=$1`, postID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM community_reactions WHERE post_id=$1`, postID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM community_shares WHERE post_id=$1`, postID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM community_posts WHERE id=$1`, postID); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	found := false
+	keepPosts := s.community.Posts[:0]
+	for _, post := range s.community.Posts {
+		if post.ID == postID {
+			if post.AuthorID != userID {
+				return errors.New("you can only delete your own post")
+			}
+			found = true
+			continue
+		}
+		keepPosts = append(keepPosts, post)
+	}
+	if !found {
+		return errors.New("post not found")
+	}
+	s.community.Posts = keepPosts
+	keepComments := s.community.Comments[:0]
+	for _, comment := range s.community.Comments {
+		if comment.PostID != postID {
+			keepComments = append(keepComments, comment)
+		}
+	}
+	s.community.Comments = keepComments
+	keepReactions := s.community.Reactions[:0]
+	for _, reaction := range s.community.Reactions {
+		if reaction.PostID != postID {
+			keepReactions = append(keepReactions, reaction)
+		}
+	}
+	s.community.Reactions = keepReactions
+	keepShares := s.community.Shares[:0]
+	for _, share := range s.community.Shares {
+		if share.PostID != postID {
+			keepShares = append(keepShares, share)
+		}
+	}
+	s.community.Shares = keepShares
+	return s.saveLocked()
+}
+
+func (s *Store) setCommunityPostHidden(postID string, hidden bool) error {
+	if s.db != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+		defer cancel()
+		result, err := s.db.ExecContext(ctx, `UPDATE community_posts SET is_hidden=$1 WHERE id=$2`, hidden, postID)
+		if err != nil {
+			return err
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return errors.New("post not found")
+		}
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.community.Posts {
+		if s.community.Posts[index].ID == postID {
+			s.community.Posts[index].IsHidden = hidden
+			return s.saveLocked()
+		}
+	}
+	return errors.New("post not found")
+}
+
 func communityPreview(body string) string {
 	runes := []rune(strings.TrimSpace(body))
 	if len(runes) <= 110 {
@@ -303,8 +413,16 @@ func communityPreview(body string) string {
 }
 
 func (s *Store) communityFeed(viewerID string) ([]CommunityPostView, error) {
+	return s.communityFeedForViewer(viewerID, false)
+}
+
+func (s *Store) communityModerationFeed() ([]CommunityPostView, error) {
+	return s.communityFeedForViewer("", true)
+}
+
+func (s *Store) communityFeedForViewer(viewerID string, includeHidden bool) ([]CommunityPostView, error) {
 	if s.db != nil {
-		return s.communityFeedPostgres(viewerID)
+		return s.communityFeedPostgres(viewerID, includeHidden)
 	}
 	s.mu.RLock()
 	posts := append([]CommunityPost(nil), s.community.Posts...)
@@ -318,11 +436,14 @@ func (s *Store) communityFeed(viewerID string) ([]CommunityPostView, error) {
 		userNames[user.ID] = user.Name
 	}
 	sort.Slice(posts, func(i, j int) bool { return posts[i].CreatedAt.After(posts[j].CreatedAt) })
-	if len(posts) > communityFeedLimit {
-		posts = posts[:communityFeedLimit]
-	}
-	result := make([]CommunityPostView, 0, len(posts))
+	result := make([]CommunityPostView, 0, min(len(posts), communityFeedLimit))
 	for _, post := range posts {
+		if post.IsHidden && !includeHidden {
+			continue
+		}
+		if len(result) >= communityFeedLimit {
+			break
+		}
 		view := communityPostView(post, userNames[post.AuthorID], viewerID, comments, reactions, shares, userNames)
 		result = append(result, view)
 	}
@@ -346,7 +467,7 @@ func communityPostView(post CommunityPost, authorName, viewerID string, comments
 	if post.IsAnonymous {
 		authorName = "Anonymous"
 	}
-	view := CommunityPostView{ID: post.ID, AuthorName: authorName, IsAnonymous: post.IsAnonymous, TopicTag: post.TopicTag, Body: post.Body, MediaMime: post.MediaMime, MediaData: post.MediaData, CreatedAt: post.CreatedAt, IsMine: post.AuthorID == viewerID, Comments: []CommunityCommentView{}}
+	view := CommunityPostView{ID: post.ID, AuthorName: authorName, IsAnonymous: post.IsAnonymous, IsHidden: post.IsHidden, TopicTag: post.TopicTag, Body: post.Body, MediaMime: post.MediaMime, MediaData: post.MediaData, CreatedAt: post.CreatedAt, IsMine: post.AuthorID == viewerID, Comments: []CommunityCommentView{}}
 	for _, reaction := range reactions {
 		if reaction.PostID == post.ID {
 			view.LikeCount++
@@ -370,16 +491,20 @@ func communityPostView(post CommunityPost, authorName, viewerID string, comments
 	return view
 }
 
-func (s *Store) communityFeedPostgres(viewerID string) ([]CommunityPostView, error) {
+func (s *Store) communityFeedPostgres(viewerID string, includeHidden bool) ([]CommunityPostView, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 	defer cancel()
+	visibilityClause := "WHERE p.is_hidden=FALSE"
+	if includeHidden {
+		visibilityClause = ""
+	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT p.id,p.author_id,p.is_anonymous,p.topic_tag,p.body,COALESCE(p.media_mime,''),COALESCE(p.media_data,''),p.media_bytes,p.created_at,u.name,
+		SELECT p.id,p.author_id,p.is_anonymous,p.is_hidden,p.topic_tag,p.body,COALESCE(p.media_mime,''),COALESCE(p.media_data,''),p.media_bytes,p.created_at,u.name,
 			COALESCE((SELECT COUNT(*) FROM community_reactions r WHERE r.post_id=p.id),0),
 			COALESCE((SELECT COUNT(*) FROM community_comments c WHERE c.post_id=p.id),0),
 			COALESCE((SELECT COUNT(*) FROM community_shares sh WHERE sh.post_id=p.id),0),
 			EXISTS(SELECT 1 FROM community_reactions own WHERE own.post_id=p.id AND own.user_id=$1)
-		FROM community_posts p JOIN users u ON u.id=p.author_id
+		FROM community_posts p JOIN users u ON u.id=p.author_id ` + visibilityClause + `
 		ORDER BY p.created_at DESC LIMIT $2`, viewerID, communityFeedLimit)
 	if err != nil {
 		return nil, err
@@ -389,7 +514,7 @@ func (s *Store) communityFeedPostgres(viewerID string) ([]CommunityPostView, err
 	for rows.Next() {
 		var post CommunityPostView
 		var authorID string
-		if err := rows.Scan(&post.ID, &authorID, &post.IsAnonymous, &post.TopicTag, &post.Body, &post.MediaMime, &post.MediaData, new(int), &post.CreatedAt, &post.AuthorName, &post.LikeCount, &post.CommentCount, &post.ShareCount, &post.LikedByMe); err != nil {
+		if err := rows.Scan(&post.ID, &authorID, &post.IsAnonymous, &post.IsHidden, &post.TopicTag, &post.Body, &post.MediaMime, &post.MediaData, new(int), &post.CreatedAt, &post.AuthorName, &post.LikeCount, &post.CommentCount, &post.ShareCount, &post.LikedByMe); err != nil {
 			return nil, err
 		}
 		if post.IsAnonymous {
@@ -464,14 +589,14 @@ func (s *Store) communityActivity(psychologistID, clientID string) (CommunityAct
 	for _, user := range users { userNames[user.ID] = user.Name }
 	result := CommunityActivity{Posts: []CommunityActivityPost{}, Comments: []CommunityActivityComment{}}
 	for _, post := range posts {
-		if post.AuthorID == clientID && !post.IsAnonymous {
+		if post.AuthorID == clientID && !post.IsAnonymous && !post.IsHidden {
 			result.Posts = append(result.Posts, CommunityActivityPost{ID: post.ID, TopicTag: post.TopicTag, Body: post.Body, CreatedAt: post.CreatedAt})
 		}
 	}
 	for _, comment := range comments {
 		if comment.AuthorID != clientID { continue }
 		post, exists := byID[comment.PostID]
-		if !exists { continue }
+		if !exists || post.IsHidden { continue }
 		authorName := userNames[post.AuthorID]
 		if post.IsAnonymous { authorName = "Anonymous" }
 		result.Comments = append(result.Comments, CommunityActivityComment{ID: comment.ID, PostID: post.ID, Body: comment.Body, PostPreview: communityPreview(post.Body), PostAuthorName: authorName, PostIsAnonymous: post.IsAnonymous, CreatedAt: comment.CreatedAt})
@@ -485,7 +610,7 @@ func (s *Store) communityActivityPostgres(clientID string) (CommunityActivity, e
 	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 	defer cancel()
 	result := CommunityActivity{Posts: []CommunityActivityPost{}, Comments: []CommunityActivityComment{}}
-	posts, err := s.db.QueryContext(ctx, `SELECT id,topic_tag,body,created_at FROM community_posts WHERE author_id=$1 AND is_anonymous=FALSE ORDER BY created_at DESC LIMIT 10`, clientID)
+	posts, err := s.db.QueryContext(ctx, `SELECT id,topic_tag,body,created_at FROM community_posts WHERE author_id=$1 AND is_anonymous=FALSE AND is_hidden=FALSE ORDER BY created_at DESC LIMIT 10`, clientID)
 	if err != nil { return result, err }
 	for posts.Next() {
 		var item CommunityActivityPost
@@ -496,7 +621,7 @@ func (s *Store) communityActivityPostgres(clientID string) (CommunityActivity, e
 	comments, err := s.db.QueryContext(ctx, `
 		SELECT c.id,c.post_id,c.body,c.created_at,p.body,p.is_anonymous,u.name
 		FROM community_comments c JOIN community_posts p ON p.id=c.post_id JOIN users u ON u.id=p.author_id
-		WHERE c.author_id=$1 ORDER BY c.created_at DESC LIMIT 12`, clientID)
+		WHERE c.author_id=$1 AND p.is_hidden=FALSE ORDER BY c.created_at DESC LIMIT 12`, clientID)
 	if err != nil { return result, err }
 	defer comments.Close()
 	for comments.Next() {
@@ -511,9 +636,13 @@ func (s *Store) communityActivityPostgres(clientID string) (CommunityActivity, e
 
 func handleCommunityFeed(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
-		posts, err := store.communityFeed(user.ID)
+		_, viewer, ok := authenticatedUser(r, store)
+		if !ok { writeError(w, http.StatusUnauthorized, "please log in first"); return }
+		if role := normalizedRole(viewer.Role); role != roleUser && role != roleAdmin {
+			writeError(w, http.StatusForbidden, "community access is not available for this account")
+			return
+		}
+		posts, err := store.communityFeed(viewer.ID)
 		if err != nil { writeError(w, http.StatusInternalServerError, "failed to load community"); return }
 		writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
 	}
@@ -524,12 +653,12 @@ func (s *Store) psychologistCanViewCommunityPost(psychologistID, postID string) 
 		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 		defer cancel()
 		var authorID string
-		var isAnonymous, hasClientComment bool
+		var isAnonymous, isHidden, hasClientComment bool
 		err := s.db.QueryRowContext(ctx, `
-			SELECT p.author_id,p.is_anonymous,
+			SELECT p.author_id,p.is_anonymous,p.is_hidden,
 				EXISTS(SELECT 1 FROM community_comments c JOIN user_access a ON a.user_id=c.author_id WHERE c.post_id=p.id AND a.role='user' AND a.psychologist_id=$2)
-			FROM community_posts p WHERE p.id=$1`, postID, psychologistID).Scan(&authorID, &isAnonymous, &hasClientComment)
-		if err != nil {
+			FROM community_posts p WHERE p.id=$1`, postID, psychologistID).Scan(&authorID, &isAnonymous, &isHidden, &hasClientComment)
+		if err != nil || isHidden {
 			return false
 		}
 		author, exists := s.findUserByID(authorID)
@@ -543,7 +672,7 @@ func (s *Store) psychologistCanViewCommunityPost(psychologistID, postID string) 
 	usersByID := map[string]User{}
 	for _, user := range users { usersByID[user.ID] = user }
 	for _, post := range posts {
-		if post.ID != postID { continue }
+		if post.ID != postID || post.IsHidden { continue }
 		if author, exists := usersByID[post.AuthorID]; exists && !post.IsAnonymous && author.PsychologistID == psychologistID {
 			return true
 		}
@@ -574,7 +703,7 @@ func handleCommunityPost(store *Store) http.HandlerFunc {
 		if !ok { writeError(w, http.StatusUnauthorized, "please log in first"); return }
 		postID := r.PathValue("id")
 		switch normalizedRole(viewer.Role) {
-		case roleUser:
+		case roleUser, roleAdmin:
 		case rolePsychologist:
 			if !store.psychologistCanViewCommunityPost(viewer.ID, postID) { writeError(w, http.StatusForbidden, "this community activity does not belong to your client"); return }
 		default:
@@ -615,6 +744,62 @@ func handleCommunityShare(store *Store) http.HandlerFunc {
 		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		if err := store.recordCommunityShare(user.ID, r.PathValue("id")); err != nil { writeError(w, http.StatusBadRequest, err.Error()); return }
 		writeJSON(w, http.StatusCreated, map[string]bool{"recorded": true})
+	}
+}
+
+func handleDeleteCommunityPost(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := requireRole(r, store, roleUser)
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
+		if err := store.deleteCommunityPost(user.ID, r.PathValue("id")); err != nil {
+			status := http.StatusBadRequest
+			if err.Error() == "post not found" { status = http.StatusNotFound }
+			if err.Error() == "you can only delete your own post" { status = http.StatusForbidden }
+			writeError(w, status, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	}
+}
+
+func handleAdminCommunityPosts(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := requireRole(r, store, roleAdmin); !ok {
+			writeError(w, http.StatusForbidden, "admin only")
+			return
+		}
+		posts, err := store.communityModerationFeed()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load community posts")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
+	}
+}
+
+func handleAdminCommunityPostUpdate(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := requireRole(r, store, roleAdmin); !ok {
+			writeError(w, http.StatusForbidden, "admin only")
+			return
+		}
+		var input CommunityModerationInput
+		if decodeJSON(w, r, &input) != nil {
+			return
+		}
+		if input.IsHidden == nil {
+			writeError(w, http.StatusBadRequest, "isHidden is required")
+			return
+		}
+		if err := store.setCommunityPostHidden(r.PathValue("id"), *input.IsHidden); err != nil {
+			status := http.StatusBadRequest
+			if err.Error() == "post not found" {
+				status = http.StatusNotFound
+			}
+			writeError(w, status, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": r.PathValue("id"), "isHidden": *input.IsHidden})
 	}
 }
 

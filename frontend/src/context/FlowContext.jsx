@@ -45,6 +45,7 @@ export function FlowProvider({ children }) {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatAvailableDates, setChatAvailableDates] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [adminCommunityPosts, setAdminCommunityPosts] = useState([]);
   const [psychologistClients, setPsychologistClients] = useState([]);
   const [clientData, setClientData] = useState(null);
   const [communityPosts, setCommunityPosts] = useState([]);
@@ -526,6 +527,16 @@ export function FlowProvider({ children }) {
     await request(`/admin/users/${userId}`, { method: 'DELETE' });
     setAdminUsers((previous) => previous.filter((user) => user.id !== userId));
   };
+  const loadAdminCommunityPosts = async () => {
+    try { const result = await request('/admin/community/posts'); setAdminCommunityPosts(result.posts || []); return result.posts || []; }
+    catch (error) { setAuthError(error.message); return []; }
+  };
+  const updateAdminCommunityPost = async (postId, isHidden) => {
+    const updated = await request(`/admin/community/posts/${postId}`, { method: 'PATCH', body: JSON.stringify({ isHidden }) });
+    setAdminCommunityPosts((previous) => previous.map((post) => post.id === postId ? { ...post, isHidden: updated.isHidden } : post));
+    setCommunityPosts((previous) => isHidden ? previous.filter((post) => post.id !== postId) : previous);
+    return updated;
+  };
   const loadPsychologistClients = async () => {
     try { const result = await request('/psychologist/clients'); setPsychologistClients(result.clients || []); }
     catch (error) { setAuthError(error.message); }
@@ -560,6 +571,11 @@ export function FlowProvider({ children }) {
     setCommunityPosts((previous) => previous.map((post) => post.id === postId ? { ...post, shareCount: post.shareCount + 1 } : post));
     return result;
   };
+  const deleteCommunityPost = async (postId) => {
+    const result = await request(`/community/posts/${postId}`, { method: 'DELETE' });
+    setCommunityPosts((previous) => previous.filter((post) => post.id !== postId));
+    return result;
+  };
   const loadCommunityActivity = async (clientId) => {
     try { const result = await request(`/psychologist/clients/${clientId}/community-activity`); setCommunityActivity(result); return result; }
     catch (error) { setAuthError(error.message); setCommunityActivity(null); return null; }
@@ -571,15 +587,15 @@ export function FlowProvider({ children }) {
     authenticate, continueAsGuest, startLogin, logout,
     consultationModalOpen, setConsultationModalOpen, consentChoice, setConsentChoice, openPsychologistFlow,
     psychologists, loadPsychologists, selectPsychologist, disconnectPsychologist, chatMessages, chatAvailableDates, loadChat, sendChat,
-    adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, deleteAdminUser, psychologistClients, loadPsychologistClients, clientData, loadClientData,
-    communityPosts, loadCommunity, loadCommunityPost, createCommunityPost, addCommunityComment, toggleCommunityLike, recordCommunityShare, communityActivity, loadCommunityActivity,
+    adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, deleteAdminUser, adminCommunityPosts, loadAdminCommunityPosts, updateAdminCommunityPost, psychologistClients, loadPsychologistClients, clientData, loadClientData,
+    communityPosts, loadCommunity, loadCommunityPost, createCommunityPost, addCommunityComment, toggleCommunityLike, recordCommunityShare, deleteCommunityPost, communityActivity, loadCommunityActivity,
     triageData, setTriageData, processTriage, isProcessingSlice, brainDumpOutcome,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
     quizLoggedToday, todayMetric, weeklyMetrics, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, brainDumpOutcome, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics, consultationModalOpen, consentChoice, psychologists, chatMessages, chatAvailableDates, adminUsers, psychologistClients, clientData, communityPosts, communityActivity]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, brainDumpOutcome, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics, consultationModalOpen, consentChoice, psychologists, chatMessages, chatAvailableDates, adminUsers, adminCommunityPosts, psychologistClients, clientData, communityPosts, communityActivity]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

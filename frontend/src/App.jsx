@@ -21,8 +21,7 @@ function MainContent() {
   if (isAuthLoading) return <main className="flex min-h-screen items-center justify-center bg-background text-sm font-bold text-on-surface-variant">Loading Careflow...</main>;
   if (!authUser && !guestAllowed) return <HomePage />;
   const role = authUser?.role;
-  const isCommunityDetail = window.location.pathname.startsWith('/community/feed/');
-  const workspace = !isCommunityDetail && (role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null);
+  const workspace = step !== 'community' && (role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null);
   return <>
     <Navbar />
     <main className={`w-full flex-1 bg-background pt-28 xl:pt-20 ${step === 'community' ? 'overflow-visible' : 'overflow-hidden'}`}><div key={workspace ? role : step} className={step === 'community' ? 'w-full' : 'page-stage w-full animate-page-slide-up'}>{workspace || <>{step === 'community' ? <CommunityPage /> : <>{step === 1 && <GentleTriage />}{step === 2 && <FlowStudio />}{step === 3 && <SafeHarbor />}</>}</>}</div></main>

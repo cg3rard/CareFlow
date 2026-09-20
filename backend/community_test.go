@@ -81,3 +81,54 @@ func TestCommunityAnonymousPrivacyAndPsychologistActivity(t *testing.T) {
 		t.Fatalf("anonymous parent leaked through activity: %#v", activity.Comments[0])
 	}
 }
+
+func TestHiddenCommunityPostIsUnavailableToUsersButVisibleToModeration(t *testing.T) {
+	store, err := newStore(filepath.Join(t.TempDir(), "careflow.json"))
+	if err != nil {
+		t.Fatalf("newStore() error = %v", err)
+	}
+	user, _, err := store.createUser(Credentials{Name: "Community Owner", Email: "community-owner@example.com", Password: "safe-password"})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	post, err := store.createCommunityPost(user.ID, CommunityPostInput{Body: "A post that needs moderation.", TopicTag: "Safe space"})
+	if err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+	if err := store.setCommunityPostHidden(post.ID, true); err != nil {
+		t.Fatalf("hide post: %v", err)
+	}
+
+	feed, err := store.communityFeed(user.ID)
+	if err != nil {
+		t.Fatalf("communityFeed() error = %v", err)
+	}
+	for _, item := range feed {
+		if item.ID == post.ID {
+			t.Fatal("hidden post appeared in a user feed")
+		}
+	}
+	if _, err := store.communityPostByID(user.ID, post.ID); err == nil {
+		t.Fatal("hidden post detail was available to a user")
+	}
+	if _, err := store.createCommunityComment(user.ID, post.ID, CommunityCommentInput{Body: "This should be rejected."}); err == nil {
+		t.Fatal("a comment could be created on a hidden post")
+	}
+
+	moderationFeed, err := store.communityModerationFeed()
+	if err != nil {
+		t.Fatalf("communityModerationFeed() error = %v", err)
+	}
+	found := false
+	for _, item := range moderationFeed {
+		if item.ID == post.ID {
+			found = true
+			if !item.IsHidden {
+				t.Fatal("moderation view did not identify the post as hidden")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("hidden post was missing from moderation view")
+	}
+}

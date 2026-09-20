@@ -61,6 +61,8 @@ export default function CommunityPage() {
     addCommunityComment,
     toggleCommunityLike,
     recordCommunityShare,
+    deleteCommunityPost,
+    updateAdminCommunityPost,
     authError,
     setAuthError,
     startLogin,
@@ -71,7 +73,7 @@ export default function CommunityPage() {
   const [detailPost, setDetailPost] = useState(null);
 
   useEffect(() => {
-    if (authUser?.role !== "user") {
+    if (!["user", "admin"].includes(authUser?.role)) {
       setLoading(false);
       return;
     }
@@ -83,7 +85,10 @@ export default function CommunityPage() {
     return () => window.removeEventListener("popstate", syncFeedRoute);
   }, []);
   useEffect(() => {
-    if (!feedId || !["user", "psychologist"].includes(authUser?.role)) {
+    if (
+      !feedId ||
+      !["user", "psychologist", "admin"].includes(authUser?.role)
+    ) {
       setDetailPost(null);
       return;
     }
@@ -161,9 +166,31 @@ export default function CommunityPage() {
       setNotice("The story link is ready to share.");
     } catch (error) {
       if (error?.name !== "AbortError")
-        setNotice(
-          "Share recorded. Copy the link from this page if needed.",
-        );
+        setNotice("Share recorded. Copy the link from this page if needed.");
+    }
+  };
+
+  const remove = async (post) => {
+    setAuthError("");
+    await deleteCommunityPost(post.id);
+    setNotice("Your post has been deleted.");
+    if (feedId) {
+      window.history.pushState({}, "", "/community/");
+      setFeedId("");
+      setDetailPost(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const hidePost = async (post) => {
+    setAuthError("");
+    await updateAdminCommunityPost(post.id, true);
+    setNotice("The post has been hidden from the Community.");
+    if (feedId) {
+      window.history.pushState({}, "", "/community/");
+      setFeedId("");
+      setDetailPost(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -217,7 +244,9 @@ export default function CommunityPage() {
                 aria-label="Close message"
                 className="community-tap rounded-full p-1 hover:bg-white/30"
               >
-                <span className="material-symbols-outlined text-base">close</span>
+                <span className="material-symbols-outlined text-base">
+                  close
+                </span>
               </button>
             </div>
           )}
@@ -253,7 +282,10 @@ export default function CommunityPage() {
                 onClick={() => window.history.back()}
                 className="community-tap inline-flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-xs font-bold text-on-surface hover:bg-surface-container-high"
               >
-                <span className="material-symbols-outlined text-base" aria-hidden="true">
+                <span
+                  className="material-symbols-outlined text-base"
+                  aria-hidden="true"
+                >
                   arrow_back
                 </span>
                 Back to Psychologist Panel
@@ -290,9 +322,12 @@ export default function CommunityPage() {
                 onLike={() => like(post)}
                 onComment={comment}
                 onShare={() => share(post)}
+                onDelete={() => remove(post)}
+                onHide={() => hidePost(post)}
+                canModerate={authUser.role === "admin"}
                 onOpen={() => openFeed(post.id)}
                 forceCommentsOpen={Boolean(feedId)}
-                readOnly={authUser.role === "psychologist"}
+                readOnly={authUser.role !== "user"}
               />
             ))
           )}
@@ -426,7 +461,9 @@ function PostComposer({ onPublish, authUser }) {
         </div>
       )}
       {mediaError && (
-        <p className="animate-community-panel mt-3 text-xs font-semibold text-error">{mediaError}</p>
+        <p className="animate-community-panel mt-3 text-xs font-semibold text-error">
+          {mediaError}
+        </p>
       )}
       <div className="mt-4 flex flex-col gap-3 border-t border-surface-container pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
@@ -475,6 +512,9 @@ function PostCard({
   onLike,
   onComment,
   onShare,
+  onDelete,
+  onHide,
+  canModerate = false,
   onOpen,
   forceCommentsOpen = false,
   readOnly = false,
@@ -483,7 +523,32 @@ function PostCard({
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingHide, setConfirmingHide] = useState(false);
+  const [hiding, setHiding] = useState(false);
   const [likeBurstKey, setLikeBurstKey] = useState(0);
+  const canDelete = !readOnly && post.isMine && typeof onDelete === "function";
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+      setMenuOpen(false);
+    }
+  };
+  const handleHide = async () => {
+    if (typeof onHide !== "function") return;
+    setHiding(true);
+    try {
+      await onHide();
+    } finally {
+      setHiding(false);
+      setConfirmingHide(false);
+    }
+  };
   const submitComment = async (event) => {
     event.preventDefault();
     if (!comment.trim()) return;
@@ -559,31 +624,158 @@ function PostCard({
               </p>
             </div>
           </div>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setMenuOpen((value) => !value);
-              }}
-              aria-label="Post menu"
-              className="community-tap flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
-            >
-              <span className="material-symbols-outlined">more_horiz</span>
-            </button>
-            {menuOpen && (
+          <div className="flex items-start gap-1">
+            {canModerate && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmingHide((value) => !value);
+                  }}
+                  aria-label="Admin tools: hide post"
+                  aria-expanded={confirmingHide}
+                  title="Admin tools"
+                  className="community-tap flex h-8 w-8 items-center justify-center rounded-full bg-error text-on-error shadow-[0_2px_0_#121214] hover:bg-error/90"
+                >
+                  <span className="material-symbols-outlined text-[19px]">
+                    priority_high
+                  </span>
+                </button>
+                {confirmingHide && (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm hide post"
+                    onClick={(event) => event.stopPropagation()}
+                    className="animate-community-panel absolute right-0 top-10 z-30 w-56 rounded-2xl border border-error/30 bg-surface-container-lowest p-3 text-xs shadow-[0_10px_28px_rgb(27,27,29,0.18)]"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="material-symbols-outlined text-error">
+                        warning
+                      </span>
+                      <p className="font-semibold leading-relaxed text-on-surface">
+                        Hide this post from everyone?
+                      </p>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">
+                      It will disappear from the Community immediately. You can
+                      restore it later from admin moderation.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={hiding}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleHide();
+                        }}
+                        className="community-tap flex-1 rounded-full bg-error px-3 py-2 font-bold text-on-error disabled:opacity-50"
+                      >
+                        {hiding ? "Hiding…" : "Hide post"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={hiding}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setConfirmingHide(false);
+                        }}
+                        className="community-tap flex-1 rounded-full bg-surface-container px-3 py-2 font-bold text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="relative">
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setMenuOpen(false);
-                  onShare();
+                  setMenuOpen((value) => !value);
+                  setConfirmingDelete(false);
                 }}
-                className="animate-community-panel community-tap absolute right-0 top-9 z-20 rounded-xl bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-[0_8px_20px_rgb(27,27,29,0.12)]"
+                aria-label="Post menu"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="community-tap flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
               >
-                Share
+                <span className="material-symbols-outlined">more_horiz</span>
               </button>
-            )}
+              {menuOpen && (
+                <div
+                  role="menu"
+                  onClick={(event) => event.stopPropagation()}
+                  className="animate-community-panel absolute right-0 top-9 z-20 flex min-w-[11rem] flex-col overflow-hidden rounded-xl bg-surface-container-lowest py-1 text-xs font-bold text-on-surface shadow-[0_8px_20px_rgb(27,27,29,0.12)]"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMenuOpen(false);
+                      onShare();
+                    }}
+                    className="community-tap flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-container"
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      ios_share
+                    </span>
+                    Share
+                  </button>
+                  {canDelete &&
+                    (confirmingDelete ? (
+                      <div className="flex flex-col gap-1 border-t border-surface-container px-3 pb-2 pt-2">
+                        <p className="text-[11px] font-semibold text-on-surface-variant">
+                          Delete this post permanently?
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={deleting}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDelete();
+                            }}
+                            className="community-tap flex-1 rounded-full bg-error px-3 py-1.5 text-on-error disabled:opacity-50"
+                          >
+                            {deleting ? "Deleting…" : "Delete"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deleting}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setConfirmingDelete(false);
+                            }}
+                            className="community-tap flex-1 rounded-full bg-surface-container px-3 py-1.5 text-on-surface hover:bg-surface-container-high"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setConfirmingDelete(true);
+                        }}
+                        className="community-tap flex items-center gap-2 border-t border-surface-container px-3 py-2 text-left text-error hover:bg-error-container/40"
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          delete
+                        </span>
+                        Delete Post
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-on-surface">
@@ -612,7 +804,9 @@ function PostCard({
         {readOnly ? (
           <div className="flex items-center justify-end gap-3">
             <p className="rounded-xl bg-surface-container px-3 py-2 text-xs font-semibold text-on-surface-variant">
-              View Activity · Psychologist Mode
+              {canModerate
+                ? "Admin moderation mode"
+                : "View Activity · Psychologist Mode"}
             </p>
           </div>
         ) : (

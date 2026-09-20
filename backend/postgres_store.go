@@ -89,6 +89,7 @@ func (s *Store) migratePostgres(ctx context.Context) error {
 			id            TEXT PRIMARY KEY,
 			author_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			is_anonymous  BOOLEAN NOT NULL DEFAULT FALSE,
+			is_hidden     BOOLEAN NOT NULL DEFAULT FALSE,
 			topic_tag     TEXT NOT NULL DEFAULT 'umum',
 			body          TEXT NOT NULL,
 			media_mime    TEXT,
@@ -96,6 +97,7 @@ func (s *Store) migratePostgres(ctx context.Context) error {
 			media_bytes   INTEGER NOT NULL DEFAULT 0,
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
 		CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts (created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_community_posts_author ON community_posts (author_id, created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_community_posts_named_author ON community_posts (author_id, created_at DESC) WHERE is_anonymous = FALSE;

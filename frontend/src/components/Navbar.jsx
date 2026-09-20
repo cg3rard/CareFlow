@@ -61,7 +61,7 @@ export default function Navbar() {
       : resetFlow();
 
   return (
-    <header className="apple-header fixed inset-x-0 top-0 z-50 bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+    <header className="apple-header fixed inset-x-0 top-0 z-50 bg-background/95 shadow-[0_1px_8px_rgba(0,0,0,0.06)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-12">
         <div className="flex min-w-0 items-center gap-3 xl:gap-6">
           <button
@@ -70,7 +70,7 @@ export default function Navbar() {
             className="flex shrink-0 items-center gap-2.5"
             title={isStaff ? workspaceLabel : "Back to triage"}
           >
-            <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white p-1 shadow-xs">
+            <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-transparent p-0 shadow-none">
               <img
                 src={logo}
                 alt="Careflow"
@@ -82,9 +82,21 @@ export default function Navbar() {
             </span>
           </button>
           {isStaff ? (
-            <span className="hidden rounded-full bg-tertiary-container px-4 py-1.5 text-xs font-bold text-on-tertiary-container sm:inline">
-              {workspaceLabel}
-            </span>
+            <>
+              <span className="hidden rounded-full bg-tertiary-container px-4 py-1.5 text-xs font-bold text-on-tertiary-container sm:inline">
+                {workspaceLabel}
+              </span>
+              {role === "admin" && (
+                <button
+                  type="button"
+                  onClick={() => navigateTo("community")}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${step === "community" ? "bg-error-container text-on-error-container" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">forum</span>
+                  Community tools
+                </button>
+              )}
+            </>
           ) : (
             <nav
               className="hidden items-center rounded-full border border-surface-container bg-surface-container-low p-1 xl:flex"
