@@ -241,6 +241,7 @@ export function FlowProvider({ children }) {
     setAuthUser({ ...result.user, streakDays: result.streakDays || 0 });
     setStreakDays(result.streakDays || 0);
     setGuestAllowed(false);
+    navigateTo(1);
     return result;
   };
 
