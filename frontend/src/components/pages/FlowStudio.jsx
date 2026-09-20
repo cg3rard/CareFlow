@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFlow } from '../../context/FlowContext';
+import { audioEngine } from '../../utils/audioEngine';
 
 export default function FlowStudio() {
   const {
@@ -20,14 +21,10 @@ export default function FlowStudio() {
     saveCurrentSession,
     vaultSavedNotice,
     authUser,
-    brainDumpOutcome,
     setStep,
   } = useFlow();
 
-  // ========================================================
-  // 1. Bio-Sync Breathing Engine with SVG Face & Presets
-  // ========================================================
-  const [breathingPattern, setBreathingPattern] = useState('box'); // 'box' (4-4-4) | 'deep' (4-7-8) | 'free'
+  const [breathingPattern, setBreathingPattern] = useState('box');
   const [breathPhaseIndex, setBreathPhaseIndex] = useState(0);
   const [breathSeconds, setBreathSeconds] = useState(4);
   const [breathCycle, setBreathCycle] = useState(0);
@@ -35,10 +32,6 @@ export default function FlowStudio() {
   const [floatingXpText, setFloatingXpText] = useState('');
   const TOTAL_BREATH_CYCLES = 8;
 
-  // Simple, transparent level curve: every 100 XP earned from completing
-  // micro-tasks advances the level by 1. Based on lifetimeXp (persisted in
-  // the database via task_completions), not the per-session totalXp, so
-  // Level survives logout/reload instead of resetting.
   const XP_PER_LEVEL = 100;
   const calmLevel = Math.floor(lifetimeXp / XP_PER_LEVEL) + 1;
   const xpIntoCurrentLevel = lifetimeXp % XP_PER_LEVEL;
@@ -69,6 +62,7 @@ export default function FlowStudio() {
 
         setBreathPhaseIndex((prevIdx) => {
           const nextIdx = (prevIdx + 1) % currentPattern.length;
+          audioEngine.playBellChime();
           if (nextIdx === 0) {
             setBreathCycle((cycle) => {
               const nextCycle = cycle + 1;
@@ -95,6 +89,7 @@ export default function FlowStudio() {
       setBreathPhaseIndex(0);
       setBreathSeconds((phaseConfigs[breathingPattern] || phaseConfigs.box)[0].seconds);
     }
+    audioEngine.playBellChime();
     setIsBreathingActive(true);
   };
 
@@ -107,7 +102,6 @@ export default function FlowStudio() {
     setBreathSeconds((phaseConfigs[breathingPattern] || phaseConfigs.box)[0].seconds);
   };
 
-  // Manual sphere tap to cycle immediately (only while a session is active)
   const handleSphereTap = () => {
     if (!isBreathingActive) return;
     const currentPattern = phaseConfigs[breathingPattern] || phaseConfigs.box;
@@ -116,13 +110,10 @@ export default function FlowStudio() {
     setBreathSeconds(currentPattern[nextIdx].seconds);
   };
 
-  // ========================================================
-  // 2. 5-Minute Quest Countdown Timer with SVG progress
-  // ========================================================
   const TOTAL_QUEST_TIME = 300;
-  const [questTime, setQuestTime] = useState(TOTAL_QUEST_TIME); // 5:00
+  const [questTime, setQuestTime] = useState(TOTAL_QUEST_TIME);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [hasQuestStarted, setHasQuestStarted] = useState(false); // A new mission can only run after the timer starts
+  const [hasQuestStarted, setHasQuestStarted] = useState(false);
 
   useEffect(() => {
     let timer = null;
@@ -140,13 +131,12 @@ export default function FlowStudio() {
     return () => clearInterval(timer);
   }, [isTimerRunning, questTime]);
 
-  // Start the quest: run the timer and unlock mission access
   const startQuest = () => {
+    audioEngine.playBellChime();
     setHasQuestStarted(true);
     setIsTimerRunning(true);
   };
 
-  // Toggle pause/resume. If never started, the button acts as "Start".
   const toggleQuestTimer = () => {
     if (!hasQuestStarted) {
       startQuest();
@@ -155,14 +145,12 @@ export default function FlowStudio() {
     setIsTimerRunning((prev) => !prev);
   };
 
-  // Reset the 5-minute timer back to its initial state (not running, missions locked again)
   const resetQuestTimer = () => {
     setQuestTime(TOTAL_QUEST_TIME);
     setIsTimerRunning(false);
     setHasQuestStarted(false);
   };
 
-  // Start a completely new round of missions: uncheck all missions & reset timer to 5:00
   const startNewMissionRound = () => {
     resetMicroTasks();
     resetQuestTimer();
@@ -176,23 +164,16 @@ export default function FlowStudio() {
 
   const timerProgressPercentage = Math.round((questTime / TOTAL_QUEST_TIME) * 100);
 
-  // Are all missions complete? (activeMissionIndex becomes -1 when no tasks remain)
   const isAllMissionsCleared = hasQuestStarted && microTasks.length > 0 && activeMissionIndex === -1;
-  // Time ran out before all missions were completed = failed
   const isQuestFailed = hasQuestStarted && questTime <= 0 && !isAllMissionsCleared;
-  // Timer & mission actions are locked when: not yet started, paused, or the quest has ended (failed/succeeded)
   const isQuestLocked = !hasQuestStarted || !isTimerRunning || isQuestFailed || isAllMissionsCleared;
 
-  // Permanently stop the timer once all missions are complete (can no longer be paused/resumed)
   useEffect(() => {
     if (isAllMissionsCleared && isTimerRunning) {
       setIsTimerRunning(false);
     }
   }, [isAllMissionsCleared, isTimerRunning]);
 
-  // ========================================================
-  // 3. Crush the Worry (Burn Negative Thoughts)
-  // ========================================================
   const [worryText, setWorryText] = useState('');
   const [isCrushing, setIsCrushing] = useState(false);
   const [ashParticles, setAshParticles] = useState([]);
@@ -206,8 +187,6 @@ export default function FlowStudio() {
     if (!worryText.trim() || isCrushing) return;
     setIsCrushing(true);
 
-    // Brief wind-up shake before the actual burst, then trigger the
-    // shockwave + debris + card rumble together for a punchier payoff.
     window.setTimeout(() => {
       setAshParticles(
         Array.from({ length: 26 }, (_, index) => {
@@ -240,6 +219,7 @@ export default function FlowStudio() {
       );
       setIsShockwaveActive(true);
       setIsCardShaking(true);
+      audioEngine.playCrushBurst();
 
       window.setTimeout(() => setIsCardShaking(false), 400);
       window.setTimeout(() => {
@@ -252,7 +232,6 @@ export default function FlowStudio() {
     }, 260);
   };
 
-  // Wrapper for task toggle with floating XP banner
   const handleTaskCheck = (task) => {
     if (!hasQuestStarted) {
       setFloatingXpText('Press "Start Mission" first to begin ⏱️');
@@ -264,7 +243,11 @@ export default function FlowStudio() {
       setTimeout(() => setFloatingXpText(''), 1800);
       return;
     }
+    const isCompletingTask = !task.completed;
     toggleTaskDone(task.id);
+    if (isCompletingTask) {
+      audioEngine.playSuccessEffect();
+    }
     if (!task.completed && microTasks[activeMissionIndex]?.id === task.id) {
       setFloatingXpText(`+${task.xp || 15} Calm XP!`);
       setTimeout(() => setFloatingXpText(''), 1500);
@@ -281,11 +264,6 @@ export default function FlowStudio() {
 
   const completedCount = microTasks.filter((t) => t.completed).length;
 
-  // Groups real task-completion timestamps into daily buckets over the last
-  // 7 days so the "Focus Activity This Week" chart reflects actual usage
-  // instead of a fixed mock-up. Combines the current session's local log
-  // (works for guests too) with server-synced completions for logged-in
-  // users, de-duplicated by completion id so nothing is double-counted.
   const weeklyFocusActivity = (() => {
     const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const seenIds = new Set();
@@ -320,7 +298,6 @@ export default function FlowStudio() {
 
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 gap-6 pb-28">
-      {/* Floating XP Toast */}
       {floatingXpText && (
         <div className="fixed top-24 right-1/2 translate-x-1/2 z-50 bg-[#121214] text-white px-5 py-2.5 rounded-full text-xs font-extrabold shadow-xl animate-float-xp flex items-center gap-2">
           <span>🎉</span>
@@ -328,37 +305,6 @@ export default function FlowStudio() {
         </div>
       )}
 
-      {brainDumpOutcome && (
-        <div className="rounded-2xl border border-primary/25 bg-primary-container px-5 py-4 text-on-primary-container shadow-[0_3px_0_#121214]" role="status">
-          <div className="flex items-start gap-3">
-            <span className="material-symbols-outlined mt-0.5" aria-hidden="true">{brainDumpOutcome.shared ? 'lock_open' : 'lock'}</span>
-            <div>
-              <p className="text-sm font-bold">Brain Dump note saved</p>
-              <p className="mt-1 text-xs font-medium leading-relaxed">
-                {brainDumpOutcome.shared
-                  ? 'This final note has also been shared with the psychologist you selected, per your active data consent.'
-                  : 'This final note is saved privately to your account and has not been shared with a psychologist.'}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setBreathingPattern('free');
-                  setBreathPhaseIndex(0);
-                  setBreathSeconds(3);
-                  setBreathCycle(0);
-                  setIsBreathingActive(true);
-                }}
-                className="mt-3 inline-flex items-center gap-2 rounded-full bg-inverse-surface px-4 py-2 text-xs font-bold text-inverse-on-surface shadow-[0_2px_0_#121214] transition-all hover:opacity-90 active:translate-y-0.5 active:shadow-none"
-              >
-                <span className="material-symbols-outlined text-base" aria-hidden="true">air</span>
-                Start a ~1 minute breathing grounding
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TOP MOOD STATUS BAR */}
       <div className="w-full bg-surface-container-lowest rounded-[2rem] p-4 sm:p-5 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center shrink-0 shadow-xs relative">
@@ -396,13 +342,8 @@ export default function FlowStudio() {
         </div>
       </div>
 
-      {/* 2-COLUMN PLAYFUL BENTO STUDIO LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
-        {/* ========================================================
-            LEFT COLUMN: Bio-Sync & Zen Breathing + Soundscapes + Worry Burner
-           ======================================================== */}
         <div className="lg:col-span-6 flex flex-col gap-6">
-          {/* Card 1: Bio-Sync Breathing Sphere Interactive */}
           <div className="bg-surface-container-lowest rounded-[2rem] p-6 sm:p-8 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col items-center relative overflow-hidden">
             <div className="w-full flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -414,13 +355,11 @@ export default function FlowStudio() {
               </span>
             </div>
 
-            {/* Breathing Interactive Sphere Canvas Area */}
             <div
               onClick={handleSphereTap}
               className={`relative w-64 h-64 my-4 flex items-center justify-center select-none group ${isBreathingActive ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
               title={isBreathingActive ? 'Tap the circle to speed up the breath cycle' : 'Press Start to begin a breathing session'}
             >
-              {/* Pulsing Aura Rings */}
               <div
                 className={`absolute inset-0 rounded-full bg-primary-container opacity-40 transition-all duration-1000 transform animate-breathing-glow ${
                   activePhase.scale
@@ -428,7 +367,6 @@ export default function FlowStudio() {
               ></div>
               <div className="absolute inset-4 rounded-full bg-secondary-container opacity-50 blur-xl transition-all duration-1000"></div>
 
-              {/* Tactile Face Sphere with Expression Changes */}
               <div
                 className={`relative w-44 h-44 rounded-full ${activePhase.bg} flex flex-col items-center justify-center shadow-md transition-all duration-700 ease-in-out group-hover:scale-105 active:scale-95 ${
                   activePhase.scale
@@ -447,7 +385,6 @@ export default function FlowStudio() {
               </div>
             </div>
 
-            {/* Chunky Timer Metric */}
             <div className="flex items-center gap-3 bg-surface-container-low px-6 py-2 rounded-full my-2 shadow-[0_2px_0_#121214]">
               <span className="material-symbols-outlined text-primary text-[22px]">timer</span>
               <span className="text-3xl sm:text-4xl font-bold font-mono text-on-surface">
@@ -456,7 +393,6 @@ export default function FlowStudio() {
               <span className="text-sm font-semibold text-on-surface-variant">Seconds</span>
             </div>
 
-            {/* Start / Stop Controls */}
             <div className="w-full flex items-center justify-center gap-2.5">
               <button
                 type="button"
@@ -484,7 +420,6 @@ export default function FlowStudio() {
               <p className="text-xs font-bold text-primary text-center">🎉 8 cycles complete! Press Start for a new session.</p>
             )}
 
-            {/* Breathing Preset Modes */}
             <div className="w-full mt-4 flex flex-wrap gap-2 justify-center">
               <button
                 type="button"
@@ -522,7 +457,6 @@ export default function FlowStudio() {
             </div>
           </div>
 
-          {/* Card 2: Fun Soundscapes */}
           <div id="fun-soundscapes" className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -533,7 +467,6 @@ export default function FlowStudio() {
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              {/* Sound 1: Hujan Cozy */}
               <button
                 type="button"
                 onClick={() => toggleSoundscape('rain')}
@@ -556,7 +489,6 @@ export default function FlowStudio() {
                 )}
               </button>
 
-              {/* Sound 2: Hutan Pinus */}
               <button
                 type="button"
                 onClick={() => toggleSoundscape('forest')}
@@ -579,7 +511,6 @@ export default function FlowStudio() {
                 )}
               </button>
 
-              {/* Sound 3: Kafe Santai */}
               <button
                 type="button"
                 onClick={() => toggleSoundscape('cafe')}
@@ -603,7 +534,6 @@ export default function FlowStudio() {
               </button>
             </div>
 
-            {/* Volume Master Slider */}
             <div className="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
               <div className="flex justify-between items-center text-on-surface-variant text-xs">
                 <span className="uppercase tracking-wider font-bold">Volume Master Ambient</span>
@@ -621,7 +551,6 @@ export default function FlowStudio() {
             </div>
           </div>
 
-          {/* Card 3: Bakar & Hancurkan Pikiran Negatif (Crush the Worry) */}
           <div className={`bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4 relative overflow-hidden ${isCardShaking ? 'animate-card-rumble' : ''}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -714,11 +643,7 @@ export default function FlowStudio() {
           </div>
         </div>
 
-        {/* ========================================================
-            RIGHT COLUMN: Gamified Slicer & Quest Cards (col-span-6)
-           ======================================================== */}
         <div className="lg:col-span-6 flex flex-col gap-6">
-          {/* Header & Mini Mission Badge */}
           <div className="bg-surface-container-lowest rounded-[2rem] p-6 sm:p-8 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -734,11 +659,9 @@ export default function FlowStudio() {
               </div>
             </div>
 
-            {/* Chunky 5-Minute Timer Module with Animated Circular Progress */}
             <div className="bg-surface-container-low rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-[0_2px_0_#121214]">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  {/* Circular SVG Progress */}
                   <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                     <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
                       <path
@@ -808,7 +731,6 @@ export default function FlowStudio() {
                 </div>
               </div>
 
-              {/* Popup: Time's Up / Failed to Complete Mission (in-flow, pushes content below it) */}
               {isQuestFailed && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-error-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
                   <span className="text-4xl animate-bounce">⏳</span>
@@ -831,7 +753,6 @@ export default function FlowStudio() {
                 </div>
               )}
 
-              {/* Popup: All Missions Successfully Completed (in-flow, pushes content below it) */}
               {isAllMissionsCleared && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-primary-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
                   <span className="text-4xl animate-bounce">🎉</span>
@@ -855,9 +776,7 @@ export default function FlowStudio() {
               )}
             </div>
 
-            {/* 3 Playful Mission Cards Stack */}
             <div className="flex flex-col gap-4">
-              {/* Mission 1 */}
               {microTasks[0] && (
                 <div
                   className={`rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all ${
@@ -894,7 +813,6 @@ export default function FlowStudio() {
                 </div>
               )}
 
-              {/* Mission 2 (Active Quest in Lilac tactile container) */}
               {microTasks[1] && (
                 <div className={`rounded-2xl p-5 shadow-[0_4px_0_#121214] flex flex-col gap-4 relative border transition-all ${
                   microTasks[1].completed ? 'bg-primary-container/35 border-primary/20' : activeMissionIndex === 1 ? 'bg-tertiary-container/45 border-tertiary/30' : 'bg-surface-container-low opacity-70 border-surface-container-high'
@@ -923,7 +841,6 @@ export default function FlowStudio() {
                     </div>
                   </div>
 
-                  {/* Gamified Interactive Controls */}
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       type="button"
@@ -955,7 +872,6 @@ export default function FlowStudio() {
                 </div>
               )}
 
-              {/* Mission 3 (Next Up) */}
               {microTasks[2] && (
                 <div className={`rounded-2xl p-4 flex items-center justify-between gap-3 shadow-[0_2px_0_#121214] transition-all ${
                   microTasks[2].completed ? 'bg-primary-container/35' : activeMissionIndex === 2 ? 'bg-secondary-container/45 ring-1 ring-secondary/25' : 'bg-surface-container-low opacity-70'
@@ -997,7 +913,6 @@ export default function FlowStudio() {
               )}
             </div>
 
-            {/* Playful Encouragement Banner */}
             <div className="bg-secondary-container/40 rounded-2xl p-4 flex items-center gap-3 mt-1 shadow-xs">
               <span className="text-2xl shrink-0">🚀</span>
               <p className="text-xs sm:text-sm text-on-surface font-medium leading-relaxed">
@@ -1006,7 +921,6 @@ export default function FlowStudio() {
             </div>
           </div>
 
-          {/* Micro Visualizer: Streak & Flow Rhythm */}
           <div className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_4px_0_#121214] border border-surface-container flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1018,7 +932,6 @@ export default function FlowStudio() {
               </span>
             </div>
 
-            {/* Real bar graph built from actual task-completion timestamps over the last 7 days */}
             {hasWeeklyActivity ? (
               <div className="w-full h-24 flex items-end justify-between gap-2 pt-4 px-2">
                 {weeklyFocusActivity.map((day) => (

@@ -233,9 +233,6 @@ func (s *Store) sessionsForUserPostgres(userID string) ([]SessionRecord, error) 
 	return result, rows.Err()
 }
 
-// upsertDailyMetricPostgres inserts today's sleep/stress row for a user, or
-// updates the existing row for that day using COALESCE so a nil field
-// leaves the previously stored value untouched.
 func (s *Store) upsertDailyMetricPostgres(userID, metricDate string, sleepHours *float64, stressScore *int, stressLabel string) (DailyMetric, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 	defer cancel()

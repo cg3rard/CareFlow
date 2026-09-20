@@ -9,7 +9,6 @@ export default function EmergencyModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      // eslint-disable-next-line react-hooks/immutability
       fetchResources();
     }
   }, [isOpen]);
@@ -23,10 +22,8 @@ export default function EmergencyModal({ isOpen, onClose }) {
         return;
       }
     } catch {
-      // Offline fallback directory
     }
 
-    // Default curated directory if offline
     setResources([
       {
         id: 'hotline-sejiwa',
@@ -101,7 +98,6 @@ export default function EmergencyModal({ isOpen, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-fadeIn">
       <div className="relative w-full max-w-2xl bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-red-50 flex items-center justify-center text-red-500 shadow-sm border border-red-100">
@@ -124,7 +120,6 @@ export default function EmergencyModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Filter Pills */}
         <div className="flex items-center gap-2 py-4">
           {['All', 'National Hotline', 'Campus Counseling'].map((category) => (
             <button
@@ -141,7 +136,6 @@ export default function EmergencyModal({ isOpen, onClose }) {
           ))}
         </div>
 
-        {/* Resource List */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
           {filteredResources.map((res) => (
             <div
@@ -190,7 +184,6 @@ export default function EmergencyModal({ isOpen, onClose }) {
           ))}
         </div>
 
-        {/* Footer Note */}
         <div className="mt-4 pt-3 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-400">
             Your privacy is protected. Phone calls are handled directly by mental health professionals or certified counselors.

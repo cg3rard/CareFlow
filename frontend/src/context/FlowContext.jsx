@@ -9,9 +9,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const TOKEN_KEY = 'careflow_session_token';
 const GUEST_KEY = 'careflow_guest_mode';
 
-// Returns today's date ("YYYY-MM-DD") in the Asia/Jakarta timezone, matching
-// the backend's daily-metric/streak day boundary so "once per day" limits
-// line up between client and server.
 function jakartaToday() {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
@@ -71,17 +68,8 @@ export function FlowProvider({ children }) {
   const [vaultSavedNotice, setVaultSavedNotice] = useState(false);
   const [todayMetric, setTodayMetric] = useState(null);
   const [weeklyMetrics, setWeeklyMetrics] = useState([]);
-  // Real timestamps of each completed micro-task this session, used to plot
-  // an honest "focus activity" chart instead of hardcoded fake data.
-  // taskCompletionLog covers the current browser session (works for guests
-  // too); weeklyTaskCompletions is hydrated from the server for logged-in
-  // users so the chart spans the last 7 days, not just this session.
   const [taskCompletionLog, setTaskCompletionLog] = useState([]);
   const [weeklyTaskCompletions, setWeeklyTaskCompletions] = useState([]);
-  // Lifetime total XP persisted server-side (SUM of every task_completions
-  // row for this user). Unlike totalXp (per-session, resets on reload),
-  // this is what the Flow Studio Level badge is based on so it survives
-  // logout/reload.
   const [lifetimeXp, setLifetimeXp] = useState(0);
   const activeMissionIndex = microTasks.findIndex((task) => !task.completed);
 
@@ -93,8 +81,6 @@ export function FlowProvider({ children }) {
     });
   }, [vaultEntries]);
 
-  // The Daily Mood Triage "Yes or No Quiz" (sleep check-in + stress questions)
-  // may only be filled in once per calendar day, mirroring the Daily Pulse rule.
   const GUEST_QUIZ_KEY = 'careflow_guest_quiz_date';
 
   const token = () => sessionStorage.getItem(TOKEN_KEY);
@@ -128,7 +114,11 @@ export function FlowProvider({ children }) {
       headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...options.headers },
     });
     const payload = response.status === 204 ? null : await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.error || 'Your request could not be processed.');
+    if (!response.ok) {
+      const error = new Error(payload?.error || 'Your request could not be processed.');
+      error.status = response.status;
+      throw error;
+    }
     return payload;
   };
 
@@ -156,10 +146,6 @@ export function FlowProvider({ children }) {
     }
   };
 
-  // Loads up to the last 30 days of sleep/stress rows so the Yes/No Quiz can
-  // be locked once today's entry is complete, so the weekly average can be
-  // shown on the Weekly Mood Triage Matrix, and so the Mood Garden's Monthly
-  // Mood Summary (sleep/stress/streak) has real data for the current month.
   const refreshTodayMetric = async () => {
     if (!token()) {
       setTodayMetric(null);
@@ -177,8 +163,6 @@ export function FlowProvider({ children }) {
     }
   };
 
-  // Loads the last 7 days of real task-completion timestamps for the
-  // "Focus Activity This Week" chart in Flow Studio.
   const refreshWeeklyTaskCompletions = async () => {
     if (!token()) {
       setWeeklyTaskCompletions([]);
@@ -232,7 +216,7 @@ export function FlowProvider({ children }) {
         const payload = JSON.parse(event.data);
         if (payload.type === 'message' && payload.message) setChatMessages((previous) => previous.some((item) => item.id === payload.message.id) ? previous : [...previous, payload.message]);
         if (payload.type === 'error') setAuthError(payload.error);
-      } catch { /* Ignore malformed realtime payloads. */ }
+      } catch { }
     };
     return () => { socket.close(); if (chatSocketRef.current === socket) chatSocketRef.current = null; };
   }, [authUser?.id]);
@@ -282,7 +266,6 @@ export function FlowProvider({ children }) {
     try {
       if (token()) await request('/auth/logout', { method: 'POST' });
     } catch {
-      // Local cleanup still safely ends this browser session.
     }
     sessionStorage.removeItem(TOKEN_KEY);
     setTodayMetric(null);
@@ -331,9 +314,15 @@ export function FlowProvider({ children }) {
             shared: Boolean(savedBrainDump.shareWithPsychologist),
             createdAt: savedBrainDump.createdAt,
           });
-        } catch {
+        } catch (error) {
           setBrainDumpOutcome(null);
-          setAuthError('Your gentle steps are ready, but your notes could not be saved yet. Try again once your connection is back.');
+          if (error?.status === 401) {
+            sessionStorage.removeItem(TOKEN_KEY);
+            setAuthUser(null);
+            setAuthError('Your gentle steps are ready, but your session has expired. Please sign in again to save your notes.');
+          } else {
+            setAuthError('Your gentle steps are ready, but your notes could not be saved yet. Try again once your connection is back.');
+          }
         }
       }
       setStep(2);
@@ -345,11 +334,6 @@ export function FlowProvider({ children }) {
   };
 
   const toggleTaskDone = (taskId) => {
-    // IMPORTANT: the updater function passed to setMicroTasks must stay pure
-    // (no side effects). React StrictMode intentionally invokes state
-    // updater functions twice in development to catch impurities — if XP
-    // awarding, API calls, or confetti live inside the updater, they get
-    // double-invoked too (this was the root cause of XP being awarded 2x).
     const activeTask = microTasks.find((task) => !task.completed);
     if (!activeTask || activeTask.id !== taskId) return;
 
@@ -368,13 +352,11 @@ export function FlowProvider({ children }) {
           }
         })
         .catch(() => {
-          // Best-effort: the local chart still works from taskCompletionLog even if this fails.
         });
     }
     try {
       confetti({ particleCount: 35, spread: 55, origin: { y: 0.7 }, colors: ['#2c6b27', '#b8ffa9', '#fec5a7'] });
     } catch {
-      // Confetti is only decorative; completing the task must still work.
     }
   };
 
@@ -387,7 +369,6 @@ export function FlowProvider({ children }) {
     } : task));
   };
 
-  // Reset all missions back to incomplete status (used when starting a new 5-minute mission round)
   const resetMicroTasks = () => {
     setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
   };
@@ -404,8 +385,6 @@ export function FlowProvider({ children }) {
     return true;
   };
 
-  // Persists today's sleep duration immediately (independent of "Simpan Sesi"),
-  // so the value is safely stored in daily_metrics as soon as the user logs it.
   const upsertWeeklyMetric = (metric) => {
     setWeeklyMetrics((previous) => {
       const others = previous.filter((entry) => entry.metricDate !== metric.metricDate);
@@ -423,8 +402,6 @@ export function FlowProvider({ children }) {
     }
   };
 
-  // Persists today's quiz-derived stress indicator immediately once the
-  // Yes/No Quiz is completed.
   const logQuizStress = async (score, label) => {
     if (token()) {
       const metric = await request('/metrics/daily', { method: 'POST', body: JSON.stringify({ stressScore: score, stressLabel: label }) });
@@ -544,6 +521,10 @@ export function FlowProvider({ children }) {
     setAdminUsers((previous) => [created, ...previous]);
     return created;
   };
+  const deleteAdminUser = async (userId) => {
+    await request(`/admin/users/${userId}`, { method: 'DELETE' });
+    setAdminUsers((previous) => previous.filter((user) => user.id !== userId));
+  };
   const loadPsychologistClients = async () => {
     try { const result = await request('/psychologist/clients'); setPsychologistClients(result.clients || []); }
     catch (error) { setAuthError(error.message); }
@@ -589,7 +570,7 @@ export function FlowProvider({ children }) {
     authenticate, continueAsGuest, startLogin, logout,
     consultationModalOpen, setConsultationModalOpen, consentChoice, setConsentChoice, openPsychologistFlow,
     psychologists, loadPsychologists, selectPsychologist, disconnectPsychologist, chatMessages, chatAvailableDates, loadChat, sendChat,
-    adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, psychologistClients, loadPsychologistClients, clientData, loadClientData,
+    adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, deleteAdminUser, psychologistClients, loadPsychologistClients, clientData, loadClientData,
     communityPosts, loadCommunity, loadCommunityPost, createCommunityPost, addCommunityComment, toggleCommunityLike, recordCommunityShare, communityActivity, loadCommunityActivity,
     triageData, setTriageData, processTriage, isProcessingSlice, brainDumpOutcome,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,

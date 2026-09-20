@@ -20,7 +20,6 @@ function playFireCelebrationSound() {
     master.gain.setValueAtTime(0.65, ctx.currentTime);
     master.connect(ctx.destination);
 
-    // A filtered noise swell gives the effect of a flame roaring to life.
     const length = Math.floor(ctx.sampleRate * 1.3);
     const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
     const samples = buffer.getChannelData(0);
@@ -48,7 +47,6 @@ function playFireCelebrationSound() {
     noise.start();
     noise.stop(ctx.currentTime + 1.3);
 
-    // A low woosh underlines the initial ignition.
     const woosh = ctx.createOscillator();
     const wooshGain = ctx.createGain();
     woosh.type = 'sawtooth';
@@ -62,7 +60,6 @@ function playFireCelebrationSound() {
     woosh.start();
     woosh.stop(ctx.currentTime + 0.6);
 
-    // Crisp micro-pops add a crackle texture without needing an audio file.
     for (let i = 0; i < 12; i++) {
       const startAt = ctx.currentTime + 0.08 + Math.random() * 1.1;
       const pop = ctx.createOscillator();
@@ -79,7 +76,6 @@ function playFireCelebrationSound() {
 
     window.setTimeout(() => ctx.close(), 1700);
   } catch {
-    // Audio is decorative. A blocked AudioContext must not block the popup.
   }
 }
 
@@ -99,7 +95,6 @@ export default function StreakPopup({ streakDays, onDone }) {
       aria-live="polite"
       onClick={handleClose}
     >
-      {/* Fire embers drift upward around the flame without touching the background. */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
         {EMBERS.map((ember) => (
           <span
@@ -125,11 +120,9 @@ export default function StreakPopup({ streakDays, onDone }) {
         <p className="mb-4 text-xs font-bold tracking-[0.32em] text-orange-100/80">STREAK ABLAZE</p>
 
         <div className="relative flex items-center justify-center">
-          {/* Glow pulsing softly behind the flame. */}
           <span className="absolute inset-0 m-auto h-[70%] w-[70%] rounded-full bg-orange-500/35 blur-3xl animate-streak-fire-glow" />
           <span className="absolute inset-0 m-auto h-[55%] w-[55%] rounded-full border border-orange-200/25 animate-streak-ring-pulse" />
 
-          {/* The large central flame stays a static gradient glyph as requested. */}
           <span
             className="relative material-symbols-outlined bg-clip-text text-transparent"
             style={{

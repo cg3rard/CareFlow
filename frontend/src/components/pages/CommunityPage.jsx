@@ -29,8 +29,8 @@ function feedIdFromPath() {
 function CommunitySidebar({ count, className }) {
   return (
     <aside className={className} data-count={count}>
-      <div className="community-sidebar-content">
-        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-on-primary shadow-[0_3px_0_#121214]">
+      <div className="community-sidebar-content animate-community-card">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-on-primary shadow-[0_8px_20px_rgb(44,107,39,0.28)]">
           <span className="material-symbols-outlined text-3xl">forum</span>
         </div>
         <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
@@ -184,7 +184,7 @@ export default function CommunityPage() {
           <button
             type="button"
             onClick={startLogin}
-            className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-[0_3px_0_#121214]"
+            className="community-tap mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-[0_10px_24px_rgb(44,107,39,0.28)]"
           >
             Sign in to Careflow
           </button>
@@ -197,19 +197,19 @@ export default function CommunityPage() {
       {authError && (
         <p
           role="alert"
-          className="mx-auto mt-5 max-w-3xl rounded-2xl bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
+          className="animate-community-panel mx-auto mt-5 max-w-3xl rounded-2xl bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
         >
           {authError}
         </p>
       )}
       {notice && (
-        <div className="mx-auto mt-5 flex max-w-3xl items-center justify-between gap-3 rounded-2xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container">
+        <div className="animate-community-panel mx-auto mt-5 flex max-w-3xl items-center justify-between gap-3 rounded-2xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container">
           <span>{notice}</span>
           <button
             type="button"
             onClick={() => setNotice("")}
             aria-label="Close message"
-            className="rounded-full p-1 hover:bg-white/30"
+            className="community-tap rounded-full p-1 hover:bg-white/30"
           >
             <span className="material-symbols-outlined text-base">close</span>
           </button>
@@ -223,15 +223,15 @@ export default function CommunityPage() {
         />
         <main className="mx-auto w-full max-w-5xl min-w-0 space-y-5 px-4 pb-8 sm:px-6 lg:px-10">
           {!feedId && authUser.role === "user" && (
-            <PostComposer onPublish={publish} />
+            <PostComposer onPublish={publish} authUser={authUser} />
           )}
           <div className="flex items-center justify-between gap-3">
             <div>
-              {feedId ? (
+              {feedId && authUser.role !== "psychologist" ? (
                 <button
                   type="button"
                   onClick={closeFeed}
-                  className="mb-2 inline-flex items-center gap-1 rounded-full bg-surface-container px-3 py-1.5 text-xs font-bold text-on-surface hover:bg-surface-container-high"
+                  className="community-tap mb-2 inline-flex items-center gap-1 rounded-full bg-surface-container px-3 py-1.5 text-xs font-bold text-on-surface hover:bg-surface-container-high"
                 >
                   <span className="material-symbols-outlined text-base">
                     arrow_back
@@ -248,6 +248,18 @@ export default function CommunityPage() {
                   : "The latest stories from a space that looks out for each other."}
               </p>
             </div>
+            {feedId && authUser.role === "psychologist" ? (
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="community-tap inline-flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-xs font-bold text-on-surface hover:bg-surface-container-high"
+              >
+                <span className="material-symbols-outlined text-base" aria-hidden="true">
+                  arrow_back
+                </span>
+                Back to Psychologist Panel
+              </button>
+            ) : null}
             {!feedId && (
               <button
                 type="button"
@@ -255,7 +267,7 @@ export default function CommunityPage() {
                   setLoading(true);
                   loadCommunity().finally(() => setLoading(false));
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface shadow-[0_2px_0_#121214]"
+                className="community-tap flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface shadow-[0_2px_6px_rgb(27,27,29,0.08)] hover:bg-surface-container-high"
                 aria-label="Reload community"
               >
                 <span
@@ -271,10 +283,11 @@ export default function CommunityPage() {
           ) : posts.length === 0 ? (
             <EmptyFeed detail={Boolean(feedId)} />
           ) : (
-            posts.map((post) => (
+            posts.map((post, index) => (
               <PostCard
                 key={post.id}
                 post={post}
+                index={index}
                 onLike={() => like(post)}
                 onComment={comment}
                 onShare={() => share(post)}
@@ -290,7 +303,7 @@ export default function CommunityPage() {
   );
 }
 
-function PostComposer({ onPublish }) {
+function PostComposer({ onPublish, authUser }) {
   const [body, setBody] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [media, setMedia] = useState(null);
@@ -347,10 +360,10 @@ function PostComposer({ onPublish }) {
     <form
       onSubmit={submit}
       aria-busy={publishing}
-      className="relative rounded-[2rem] border border-surface-container bg-surface-container-lowest p-5 shadow-[0_4px_0_#121214] sm:p-6"
+      className="community-composer-shell relative rounded-[2rem] border border-surface-container bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgb(27,27,29,0.06)] transition-shadow sm:p-6"
     >
       {publishing && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-[2rem] bg-surface-container-lowest/90 text-center backdrop-blur-sm">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-[2rem] bg-surface-container-lowest/90 text-center backdrop-blur-md">
           <span className="material-symbols-outlined animate-spin text-3xl text-primary">
             progress_activity
           </span>
@@ -364,12 +377,12 @@ function PostComposer({ onPublish }) {
       )}
       <div className="flex items-start gap-3">
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-primary-container text-on-primary-container"}`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold transition-colors duration-300 ${isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-primary-container text-on-primary-container"}`}
         >
           {isAnonymous ? (
             <span className="material-symbols-outlined">visibility_off</span>
           ) : (
-            "Y"
+            initial(authUser?.name)
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -389,11 +402,11 @@ function PostComposer({ onPublish }) {
         </div>
       </div>
       {media && (
-        <div className="relative mt-4 overflow-hidden rounded-2xl bg-surface-container">
+        <div className="animate-community-panel relative mt-4 overflow-hidden rounded-2xl bg-surface-container">
           <button
             type="button"
             onClick={() => setMedia(null)}
-            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_2px_0_#121214]"
+            className="community-tap absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_2px_6px_rgb(27,27,29,0.18)]"
             aria-label="Remove media"
           >
             <span className="material-symbols-outlined text-base">close</span>
@@ -414,11 +427,11 @@ function PostComposer({ onPublish }) {
         </div>
       )}
       {mediaError && (
-        <p className="mt-3 text-xs font-semibold text-error">{mediaError}</p>
+        <p className="animate-community-panel mt-3 text-xs font-semibold text-error">{mediaError}</p>
       )}
       <div className="mt-4 flex flex-col gap-3 border-t border-surface-container pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer rounded-full bg-surface-container px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-high">
+          <label className="community-tap cursor-pointer rounded-full bg-surface-container px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-high">
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
@@ -436,7 +449,7 @@ function PostComposer({ onPublish }) {
             type="button"
             onClick={() => setIsAnonymous((value) => !value)}
             aria-pressed={isAnonymous}
-            className={`rounded-full px-3 py-2 text-xs font-bold ${isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-surface-container text-on-surface-variant"}`}
+            className={`community-tap rounded-full px-3 py-2 text-xs font-bold ${isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-surface-container text-on-surface-variant"}`}
           >
             <span className="inline-flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base">
@@ -448,7 +461,7 @@ function PostComposer({ onPublish }) {
         </div>
         <button
           disabled={publishing || !body.trim()}
-          className="rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-on-primary shadow-[0_3px_0_#121214] disabled:opacity-50"
+          className="community-tap rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-on-primary shadow-[0_8px_20px_rgb(44,107,39,0.28)] disabled:opacity-50 disabled:shadow-none"
         >
           {publishing ? "Sharing…" : "Share story"}
         </button>
@@ -459,6 +472,7 @@ function PostComposer({ onPublish }) {
 
 function PostCard({
   post,
+  index = 0,
   onLike,
   onComment,
   onShare,
@@ -470,6 +484,7 @@ function PostCard({
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [likeBurstKey, setLikeBurstKey] = useState(0);
   const submitComment = async (event) => {
     event.preventDefault();
     if (!comment.trim()) return;
@@ -481,6 +496,10 @@ function PostCard({
     } finally {
       setSending(false);
     }
+  };
+  const handleLike = () => {
+    if (!post.likedByMe) setLikeBurstKey((value) => value + 1);
+    onLike();
   };
   return (
     <article
@@ -503,13 +522,14 @@ function PostCard({
       }}
       role={!forceCommentsOpen ? "link" : undefined}
       tabIndex={!forceCommentsOpen ? 0 : undefined}
-      className={`overflow-hidden rounded-[2rem] border border-surface-container bg-surface-container-lowest shadow-[0_4px_0_#121214] ${!forceCommentsOpen ? "cursor-pointer" : ""}`}
+      style={{ animationDelay: `${Math.min(index, 6) * 60}ms` }}
+      className={`community-card-surface animate-community-card overflow-hidden rounded-[2rem] border border-surface-container bg-surface-container-lowest shadow-[0_8px_24px_rgb(27,27,29,0.06)] ${!forceCommentsOpen ? "cursor-pointer" : ""}`}
     >
       <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${post.isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-primary-container text-on-primary-container"}`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold transition-colors duration-300 ${post.isAnonymous ? "bg-inverse-surface text-inverse-on-surface" : "bg-primary-container text-on-primary-container"}`}
             >
               {post.isAnonymous ? (
                 <span className="material-symbols-outlined">
@@ -548,7 +568,7 @@ function PostCard({
                 setMenuOpen((value) => !value);
               }}
               aria-label="Post menu"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+              className="community-tap flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
             >
               <span className="material-symbols-outlined">more_horiz</span>
             </button>
@@ -560,7 +580,7 @@ function PostCard({
                   setMenuOpen(false);
                   onShare();
                 }}
-                className="absolute right-0 top-9 z-20 rounded-xl bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-[0_3px_0_#121214]"
+                className="animate-community-panel community-tap absolute right-0 top-9 z-20 rounded-xl bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-[0_8px_20px_rgb(27,27,29,0.12)]"
               >
                 Share
               </button>
@@ -591,25 +611,19 @@ function PostCard({
       )}
       <div className="p-3 sm:px-5 sm:pb-5">
         {readOnly ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-end gap-3">
             <p className="rounded-xl bg-surface-container px-3 py-2 text-xs font-semibold text-on-surface-variant">
               View Activity · Psychologist Mode
             </p>
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="text-xs font-semibold text-primary hover:underline"
-            >
-              ← Back to Psychologist Panel
-            </button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-1 border-y border-surface-container py-2">
             <ActionButton
-              onClick={onLike}
+              onClick={handleLike}
               active={post.likedByMe}
               icon={post.likedByMe ? "favorite" : "favorite_border"}
               label={post.likeCount || "Like"}
+              burstKey={likeBurstKey}
             />
             <ActionButton
               onClick={() => setCommentsOpen((value) => !value)}
@@ -624,7 +638,7 @@ function PostCard({
           </div>
         )}
         {commentsOpen && (
-          <div className="pt-4">
+          <div className="animate-community-panel pt-4">
             <div className="space-y-3">
               {post.comments?.length ? (
                 post.comments.map((item) => (
@@ -645,7 +659,7 @@ function PostCard({
                     </div>
                   </div>
                 ))
-              ) : (
+              ) : readOnly ? null : (
                 <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">
                   No replies yet. Be the first to offer support.
                 </p>
@@ -658,12 +672,12 @@ function PostCard({
                   onChange={(event) => setComment(event.target.value)}
                   maxLength={1200}
                   placeholder="Write a warm response…"
-                  className="min-w-0 flex-1 rounded-full bg-surface-container px-4 py-2.5 text-xs text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  className="min-w-0 flex-1 rounded-full bg-surface-container px-4 py-2.5 text-xs text-on-surface outline-none transition-shadow focus:ring-2 focus:ring-primary/30"
                 />
                 <button
                   type="submit"
                   disabled={sending || !comment.trim()}
-                  className="rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-on-primary disabled:opacity-50"
+                  className="community-tap rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-on-primary disabled:opacity-50"
                 >
                   {sending ? "…" : "Send"}
                 </button>
@@ -676,15 +690,23 @@ function PostCard({
   );
 }
 
-function ActionButton({ onClick, active, icon, label }) {
+function ActionButton({ onClick, active, icon, label, burstKey = 0 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold ${active ? "bg-error-container text-on-error-container" : "text-on-surface-variant hover:bg-surface-container"}`}
+      className={`community-tap relative flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold ${active ? "bg-error-container text-on-error-container" : "text-on-surface-variant hover:bg-surface-container"}`}
     >
+      {burstKey > 0 && (
+        <span
+          key={burstKey}
+          aria-hidden="true"
+          className="animate-community-like-ring pointer-events-none absolute h-6 w-6 rounded-full bg-error-container/70"
+        />
+      )}
       <span
-        className="material-symbols-outlined text-[18px]"
+        key={`icon-${burstKey}`}
+        className={`material-symbols-outlined text-[18px] ${burstKey > 0 ? "animate-community-like-pop" : ""}`}
         style={active ? { fontVariationSettings: "'FILL' 1" } : undefined}
       >
         {icon}
@@ -712,7 +734,7 @@ function FeedSkeleton() {
 }
 function EmptyFeed({ detail }) {
   return (
-    <div className="rounded-[2rem] bg-surface-container-lowest p-10 text-center shadow-[0_4px_0_#121214]">
+    <div className="animate-community-card rounded-[2rem] bg-surface-container-lowest p-10 text-center shadow-[0_8px_24px_rgb(27,27,29,0.06)]">
       <span className="material-symbols-outlined text-5xl text-primary">
         forum
       </span>

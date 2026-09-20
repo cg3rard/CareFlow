@@ -1,18 +1,9 @@
-/**
- * Multi-Soundscape Procedural Web Audio Engine
- * Supports:
- * 1. "rain" (Hujan Cozy 🌧️)
- * 2. "forest" (Hutan Pinus 🌲)
- * 3. "cafe" (Kafe Santai ☕)
- * 100% offline, zero network requests, zero broken audio files during demo!
- */
-
 class ProceduralSoundscapeEngine {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
     this.activeSource = null;
-    this.currentMode = null; // 'rain' | 'forest' | 'cafe' | null
+    this.currentMode = null;
     this.timerId = null;
     this.volume = 0.65;
   }
@@ -41,11 +32,9 @@ class ProceduralSoundscapeEngine {
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
       if (type === 'brown') {
-        // Brownian noise (warm, deep cafe rumble)
         lastOut = (lastOut + 0.02 * white) / 1.02;
         data[i] = lastOut * 3.5;
       } else {
-        // Pink noise (soothing rain & wind)
         b0 = 0.99886 * b0 + white * 0.0555179;
         b1 = 0.99332 * b1 + white * 0.0750759;
         b2 = 0.96900 * b2 + white * 0.1538520;
@@ -62,13 +51,11 @@ class ProceduralSoundscapeEngine {
   playMode(mode = 'rain') {
     this.init();
 
-    // If currently playing the same mode, stop it (toggle off)
     if (this.currentMode === mode) {
       this.stop();
       return false;
     }
 
-    // Stop current sound if different
     this.stopImmediate();
 
     this.currentMode = mode;
@@ -90,8 +77,6 @@ class ProceduralSoundscapeEngine {
     source.buffer = buffer;
     source.loop = true;
 
-    // Keep the rain warm and deliberately quiet: remove the sharp upper hiss
-    // before applying a dedicated gain, independent from other soundscapes.
     const highpass = this.ctx.createBiquadFilter();
     highpass.type = 'highpass';
     highpass.frequency.setValueAtTime(110, this.ctx.currentTime);
@@ -113,7 +98,6 @@ class ProceduralSoundscapeEngine {
     source.start();
     this.activeSource = source;
 
-    // Sparse droplets add texture without repeatedly cutting through the ambience.
     const scheduleDroplet = () => {
       if (this.currentMode !== 'rain') return;
       this.playDroplet();
@@ -128,7 +112,6 @@ class ProceduralSoundscapeEngine {
     source.buffer = buffer;
     source.loop = true;
 
-    // Swaying wind in trees filter
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.setValueAtTime(450, this.ctx.currentTime);
@@ -140,7 +123,6 @@ class ProceduralSoundscapeEngine {
     source.start();
     this.activeSource = source;
 
-    // Occasional gentle bird chirp
     const scheduleChirp = () => {
       if (this.currentMode !== 'forest') return;
       this.playChirp();
@@ -185,7 +167,6 @@ class ProceduralSoundscapeEngine {
       osc.start();
       osc.stop(this.ctx.currentTime + 0.13);
     } catch {
-      // Audio enhancement failure does not affect the active soundscape state.
     }
   }
 
@@ -209,7 +190,6 @@ class ProceduralSoundscapeEngine {
       osc.start();
       osc.stop(this.ctx.currentTime + 0.16);
     } catch {
-      // Audio enhancement failure does not affect the active soundscape state.
     }
   }
 
@@ -237,20 +217,16 @@ class ProceduralSoundscapeEngine {
         oscillator.stop(noteStart + duration + 0.01);
       });
     } catch {
-      // Audio is optional and must never interrupt quiz interactions.
     }
   }
 
-  // A clean, soft two-tone notification chime for the "Zen Chime" button —
-  // a quick high "tap" followed by a rounder "ring", each low-pass filtered
-  // and given a smooth attack/decay so it sounds crisp rather than harsh.
   playBellChime() {
     try {
       this.init();
       const startAt = this.ctx.currentTime;
       const tones = [
-        { frequency: 1318.51, offset: 0, gain: 0.05, duration: 0.35 }, // E6 "tap"
-        { frequency: 987.77, offset: 0.09, gain: 0.065, duration: 0.85 }, // B5 "ring"
+        { frequency: 1318.51, offset: 0, gain: 0.05, duration: 0.35 },
+        { frequency: 987.77, offset: 0.09, gain: 0.065, duration: 0.85 },
       ];
 
       tones.forEach(({ frequency, offset, gain, duration }) => {
@@ -277,7 +253,70 @@ class ProceduralSoundscapeEngine {
         oscillator.stop(noteStart + duration + 0.02);
       });
     } catch {
-      // Audio is optional and must never interrupt the notification button.
+    }
+  }
+
+  playCrushBurst() {
+    try {
+      this.init();
+      const startAt = this.ctx.currentTime;
+
+      const sub = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(120, startAt);
+      sub.frequency.exponentialRampToValueAtTime(32, startAt + 0.45);
+      subGain.gain.setValueAtTime(0.0001, startAt);
+      subGain.gain.linearRampToValueAtTime(0.55, startAt + 0.02);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.7);
+      sub.connect(subGain);
+      subGain.connect(this.masterGain);
+      sub.start(startAt);
+      sub.stop(startAt + 0.72);
+
+      const subLayer = this.ctx.createOscillator();
+      const subLayerGain = this.ctx.createGain();
+      subLayer.type = 'sine';
+      subLayer.frequency.setValueAtTime(70, startAt);
+      subLayer.frequency.exponentialRampToValueAtTime(24, startAt + 0.5);
+      subLayerGain.gain.setValueAtTime(0.0001, startAt);
+      subLayerGain.gain.linearRampToValueAtTime(0.35, startAt + 0.03);
+      subLayerGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.65);
+      subLayer.connect(subLayerGain);
+      subLayerGain.connect(this.masterGain);
+      subLayer.start(startAt);
+      subLayer.stop(startAt + 0.67);
+
+      const thudSource = this.ctx.createBufferSource();
+      thudSource.buffer = this.createNoiseBuffer('brown');
+      const thudFilter = this.ctx.createBiquadFilter();
+      thudFilter.type = 'lowpass';
+      thudFilter.frequency.setValueAtTime(320, startAt);
+      thudFilter.frequency.exponentialRampToValueAtTime(90, startAt + 0.2);
+      const thudGain = this.ctx.createGain();
+      thudGain.gain.setValueAtTime(0.55, startAt);
+      thudGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
+      thudSource.connect(thudFilter);
+      thudFilter.connect(thudGain);
+      thudGain.connect(this.masterGain);
+      thudSource.start(startAt);
+      thudSource.stop(startAt + 0.2);
+
+      const rumbleSource = this.ctx.createBufferSource();
+      rumbleSource.buffer = this.createNoiseBuffer('brown');
+      const rumbleFilter = this.ctx.createBiquadFilter();
+      rumbleFilter.type = 'lowpass';
+      rumbleFilter.frequency.setValueAtTime(500, startAt);
+      rumbleFilter.frequency.exponentialRampToValueAtTime(60, startAt + 0.8);
+      const rumbleGain = this.ctx.createGain();
+      rumbleGain.gain.setValueAtTime(0.3, startAt + 0.02);
+      rumbleGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.85);
+      rumbleSource.connect(rumbleFilter);
+      rumbleFilter.connect(rumbleGain);
+      rumbleGain.connect(this.masterGain);
+      rumbleSource.start(startAt);
+      rumbleSource.stop(startAt + 0.86);
+    } catch {
     }
   }
 
@@ -298,7 +337,6 @@ class ProceduralSoundscapeEngine {
         this.activeSource.stop();
         this.activeSource.disconnect();
       } catch {
-      // Audio enhancement failure does not affect the active soundscape state.
     }
       this.activeSource = null;
     }

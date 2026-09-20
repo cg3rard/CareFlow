@@ -435,6 +435,136 @@ func (s *Store) updateAdminUser(actorID, targetID string, input UserUpdateInput)
 	return userProfile(updated, s), nil
 }
 
+func (s *Store) deleteAdminUser(actorID, targetID string) error {
+	if actorID == targetID {
+		return errors.New("an admin cannot delete their own account")
+	}
+	if _, ok := s.findUserByID(targetID); !ok {
+		return errors.New("user not found")
+	}
+	if s.db != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
+		defer cancel()
+		result, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id=$1`, targetID)
+		if err != nil {
+			return fmt.Errorf("delete user: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return errors.New("user not found")
+		}
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	found := false
+	for i, user := range s.users {
+		if user.ID == targetID {
+			s.users = append(s.users[:i], s.users[i+1:]...)
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("user not found")
+	}
+
+	keepSessions := s.sessions[:0]
+	for _, item := range s.sessions {
+		if item.UserID != targetID {
+			keepSessions = append(keepSessions, item)
+		}
+	}
+	s.sessions = keepSessions
+
+	keepMetrics := s.dailyMetrics[:0]
+	for _, item := range s.dailyMetrics {
+		if item.UserID != targetID {
+			keepMetrics = append(keepMetrics, item)
+		}
+	}
+	s.dailyMetrics = keepMetrics
+
+	keepDeclutter := s.declutterEntries[:0]
+	for _, item := range s.declutterEntries {
+		if item.UserID != targetID {
+			keepDeclutter = append(keepDeclutter, item)
+		}
+	}
+	s.declutterEntries = keepDeclutter
+
+	keepCompletions := s.taskCompletions[:0]
+	for _, item := range s.taskCompletions {
+		if item.UserID != targetID {
+			keepCompletions = append(keepCompletions, item)
+		}
+	}
+	s.taskCompletions = keepCompletions
+
+	keepChats := s.chatMessages[:0]
+	for _, item := range s.chatMessages {
+		if item.SenderID != targetID && item.RecipientID != targetID {
+			keepChats = append(keepChats, item)
+		}
+	}
+	s.chatMessages = keepChats
+
+	deletedPostIDs := map[string]bool{}
+	keepPosts := s.community.Posts[:0]
+	for _, post := range s.community.Posts {
+		if post.AuthorID == targetID {
+			deletedPostIDs[post.ID] = true
+			continue
+		}
+		keepPosts = append(keepPosts, post)
+	}
+	s.community.Posts = keepPosts
+
+	keepComments := s.community.Comments[:0]
+	for _, item := range s.community.Comments {
+		if item.AuthorID == targetID || deletedPostIDs[item.PostID] {
+			continue
+		}
+		keepComments = append(keepComments, item)
+	}
+	s.community.Comments = keepComments
+
+	keepReactions := s.community.Reactions[:0]
+	for _, item := range s.community.Reactions {
+		if item.UserID == targetID || deletedPostIDs[item.PostID] {
+			continue
+		}
+		keepReactions = append(keepReactions, item)
+	}
+	s.community.Reactions = keepReactions
+
+	keepShares := s.community.Shares[:0]
+	for _, item := range s.community.Shares {
+		if item.UserID == targetID || deletedPostIDs[item.PostID] {
+			continue
+		}
+		keepShares = append(keepShares, item)
+	}
+	s.community.Shares = keepShares
+
+	for i := range s.users {
+		if s.users[i].PsychologistID == targetID {
+			s.users[i].PsychologistID = ""
+			s.users[i].ShareDataWithPsychologist = false
+		}
+	}
+
+	delete(s.tokens, targetID)
+	for token, userID := range s.tokens {
+		if userID == targetID {
+			delete(s.tokens, token)
+		}
+	}
+
+	return s.saveLocked()
+}
+
 func (s *Store) canChat(sender, recipient User) bool {
 	sender.Role = normalizedRole(sender.Role)
 	recipient.Role = normalizedRole(recipient.Role)
@@ -551,7 +681,6 @@ func chatMessagesForDate(items []ChatMessage, date string) []ChatMessage {
 func chatMessagesForUserWindow(items []ChatMessage) []ChatMessage {
 	location := chatHistoryLocation()
 	now := time.Now().In(location)
-	// Today plus the two preceding calendar days is the user's three-day view.
 	start := time.Date(now.Year(), now.Month(), now.Day()-2, 0, 0, 0, 0, location)
 	filtered := make([]ChatMessage, 0)
 	for _, item := range items {
@@ -697,6 +826,22 @@ func handleAdminUserUpdate(store *Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, user)
+	}
+}
+
+func handleAdminDeleteUser(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireRole(r, store, roleAdmin)
+		if !ok {
+			writeError(w, http.StatusForbidden, "admin only")
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
+		if err := store.deleteAdminUser(actor.ID, id); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 func handleCreateChatMessage(store *Store) http.HandlerFunc {

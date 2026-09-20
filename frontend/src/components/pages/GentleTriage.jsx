@@ -37,8 +37,6 @@ export default function GentleTriage() {
   const [bellActive, setBellActive] = useState(false);
   const [activeQuote, setActiveQuote] = useState(null);
 
-  // Multi-step Interactive Quick Quiz — 4 questions rotate daily so the check-in
-  // stays fresh instead of repeating the same 4 questions every day.
   const [quizQuestions] = useState(() => getDailyQuizQuestions());
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState([]);
@@ -53,8 +51,6 @@ export default function GentleTriage() {
   const [brainDumpDraftSavedAt, setBrainDumpDraftSavedAt] = useState(null);
   const brainDumpDraftKey = `careflow_brain_dump_draft_${authUser?.id || 'guest'}`;
 
-  // Keep unfinished thoughts on this device only. The server receives a
-  // final, immutable note only when the user explicitly chooses to unravel it.
   useEffect(() => {
     setIsBrainDumpDraftReady(false);
     try {
@@ -90,18 +86,11 @@ export default function GentleTriage() {
           setBrainDumpDraftSavedAt(new Date());
         }
       } catch {
-        // Draft persistence is optional; typing must remain uninterrupted.
       }
     }, 650);
     return () => window.clearTimeout(timeout);
   }, [brainDumpDraftKey, isBrainDumpDraftReady, triageData]);
 
-  // The quiz (sleep check-in + Yes/No questions) is limited to one
-  // completion per calendar day. Hydrate local state from the server so a
-  // page refresh resumes from the right step instead of losing progress:
-  // - If today's sleep hours are already on the server, skip the sleep
-  //   check-in step and jump straight to the Yes/No questions.
-  // - Only fully lock the quiz once the stress score is also recorded.
   useEffect(() => {
     if (todayMetric?.sleepHours != null) {
       setSleepHours(todayMetric.sleepHours);
@@ -184,6 +173,7 @@ export default function GentleTriage() {
 
   const handleGoToFlowStudio = () => {
     setIsQuizCompleteModalOpen(false);
+    audioEngine.playSuccessEffect();
     setStep(2);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -191,10 +181,6 @@ export default function GentleTriage() {
   const quizCompleted = quizAnswers.length === quizQuestions.length || quizLoggedToday;
   const lastQuizAnswer = quizAnswers[quizAnswers.length - 1];
 
-  // Weekly Mood Triage Matrix shows the average sleep duration across the
-  // last 7 days rather than a single day's value. Today's freshly-logged
-  // value (if not yet reflected in weeklyMetrics) is merged in so the
-  // average updates immediately after logging.
   const weeklySleepSamples = (() => {
     const byDate = new Map(weeklyMetrics.filter((m) => m.sleepHours != null).map((m) => [m.metricDate, m.sleepHours]));
     if (sleepHours != null && todayMetric) byDate.set(todayMetric.metricDate, sleepHours);
@@ -363,11 +349,8 @@ export default function GentleTriage() {
     }
   };
 
-  // Cognitive Overwhelm Meter calculation
-
   return (
     <div className="flex flex-col w-full pb-16">
-      {/* Interactive Top Atmosphere & Greeting Bar */}
       <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-12 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest p-4 sm:p-6 rounded-[2.5rem] shadow-sm border border-surface-container/60 hover:shadow-md transition-shadow">
           <div className="flex items-center gap-4">
@@ -409,12 +392,9 @@ export default function GentleTriage() {
         </div>
       </section>
 
-      {/* Hero Row: Asymmetric Playful Triage Stage */}
       <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-12 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Left Hero Banner: 'Not Sure About Your Mood?' */}
           <div className="lg:col-span-7 bg-surface-container-lowest rounded-[3rem] p-6 sm:p-10 flex flex-col justify-between relative overflow-hidden shadow-sm border border-surface-container">
-            {/* Decorative Ambient Backdrops */}
             <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-tertiary-fixed opacity-40 blur-3xl pointer-events-none"></div>
             <div className="absolute -bottom-16 -left-16 w-72 h-72 rounded-full bg-primary-fixed opacity-50 blur-3xl pointer-events-none"></div>
 
@@ -448,7 +428,6 @@ export default function GentleTriage() {
               </div>
             </div>
 
-            {/* Playful Interactive Speech Bubble for Active Mascot */}
             <div className="relative z-10 mt-6 p-3 rounded-2xl bg-surface-container border border-surface-container-high flex items-center gap-3 animate-fadeIn">
               <span className="text-lg">💬</span>
               <p className="text-xs sm:text-sm font-bold text-on-surface italic">
@@ -456,7 +435,6 @@ export default function GentleTriage() {
               </p>
             </div>
 
-            {/* Playful Blob Cluster Visualizer (5 Mascot Doodles) */}
             <div className="relative z-10 mt-4 pt-2">
               <div className="flex flex-wrap items-end justify-center lg:justify-start gap-4 sm:gap-6">
                 {mascots.map((m) => {
@@ -486,7 +464,6 @@ export default function GentleTriage() {
             </div>
           </div>
 
-          {/* Right Column: Interactive Daily Mood Picker Card */}
           <div className="lg:col-span-5 bg-surface-container-lowest rounded-[3rem] p-6 sm:p-10 flex flex-col justify-between shadow-sm border border-surface-container">
             <div>
               <div className="flex items-center justify-between pb-2">
@@ -502,9 +479,7 @@ export default function GentleTriage() {
                 Tap a frequency to tune your day's personal Careflow rhythm.
               </p>
 
-              {/* 4 Interactive Face Chips Selector with tactile feedback */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-                {/* Happy */}
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Happy')}
@@ -527,7 +502,6 @@ export default function GentleTriage() {
                   <span className="text-xs font-bold">Happy</span>
                 </button>
 
-                {/* Angry */}
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Angry')}
@@ -550,7 +524,6 @@ export default function GentleTriage() {
                   <span className="text-xs font-bold">Angry</span>
                 </button>
 
-                {/* Sleepy */}
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Sleepy')}
@@ -573,7 +546,6 @@ export default function GentleTriage() {
                   <span className="text-xs font-bold">Sleepy</span>
                 </button>
 
-                {/* Bored */}
                 <button
                   type="button"
                   onClick={() => setSelectedMood('Bored')}
@@ -598,7 +570,6 @@ export default function GentleTriage() {
               </div>
             </div>
 
-            {/* Dynamic Feedback Prompt */}
             <div className="mt-8 p-4 rounded-[2rem] bg-surface-container flex items-center justify-between gap-4 shadow-[0_3px_0_#121214]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-xs">
@@ -631,7 +602,6 @@ export default function GentleTriage() {
         </div>
       </section>
 
-      {/* Bento Grid: Interactive Check-in & Brain-Dump */}
       <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-12 py-6" id="triage-bento">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-2">
           <div>
@@ -646,11 +616,8 @@ export default function GentleTriage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* LEFT COLUMN: Dual Metric Tiles + Multi-step Quiz (Col span 7) */}
           <div className="md:col-span-7 flex flex-col gap-6">
-            {/* Dual Tiles Row (Sleep & Stress) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Sleep Duration Bento Tile with Hover Dancing Wave */}
               <div className="bg-secondary-container text-on-secondary-container rounded-[2.5rem] p-6 flex flex-col justify-between min-h-[220px] shadow-[0_4px_0_#121214] relative overflow-hidden group">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -662,7 +629,6 @@ export default function GentleTriage() {
                   </span>
                 </div>
 
-                {/* Interactive Wave Bars */}
                 <div className="flex items-end justify-between gap-1.5 h-20 my-3 px-2">
                   <div className="w-3 rounded-full bg-on-secondary-container/30 h-10 group-hover:h-14 transition-all duration-300"></div>
                   <div className="w-3 rounded-full bg-on-secondary-container/50 h-14 group-hover:h-18 transition-all duration-300"></div>
@@ -693,7 +659,6 @@ export default function GentleTriage() {
                 </div>
               </div>
 
-              {/* Stress Indicator Bento Tile */}
               <div className="bg-tertiary-container text-on-tertiary-container rounded-[2.5rem] p-6 flex flex-col justify-between min-h-[220px] shadow-[0_4px_0_#121214] relative overflow-hidden group">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -703,7 +668,6 @@ export default function GentleTriage() {
                   <span className={`w-2.5 h-2.5 rounded-full ${stressScore != null ? (stressScore >= 70 ? 'bg-red-500' : stressScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-on-tertiary-container/35'}`}></span>
                 </div>
 
-                {/* Graduated Step Bar Chart */}
                 <div className="flex items-end justify-between gap-1.5 h-20 my-3 px-2">
                   <div className="w-3 rounded-t-md bg-on-tertiary-container/20 h-4 group-hover:h-6 transition-all"></div>
                   <div className="w-3 rounded-t-md bg-on-tertiary-container/30 h-7 group-hover:h-9 transition-all"></div>
@@ -727,7 +691,6 @@ export default function GentleTriage() {
               </div>
             </div>
 
-            {/* Yes or No Quick Mood Quiz (Interactive Multi-Question Pulse) */}
             <div className="bg-primary-container text-on-primary-container rounded-[2.5rem] p-6 sm:p-8 flex flex-col justify-between shadow-[0_4px_0_#121214] relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -750,7 +713,6 @@ export default function GentleTriage() {
                 </div>
               </div>
 
-              {/* Quiz Progress Bar (step 0 = sleep hours, steps 1-4 = yes/no questions) */}
               <div className="w-full bg-surface-container-lowest/40 h-1.5 rounded-full mt-3 overflow-hidden">
                 <div
                   className="bg-[#121214] h-full transition-all duration-300"
@@ -846,7 +808,6 @@ export default function GentleTriage() {
                     </p>
                   </div>
 
-                  {/* Tactile Arcade Buttons */}
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       type="button"
@@ -925,7 +886,6 @@ export default function GentleTriage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Brain Dump & Tangled Thoughts (Col span 5) */}
           <div className="md:col-span-5 bg-surface-container-lowest rounded-[3rem] p-6 sm:p-8 flex flex-col justify-between shadow-[0_4px_0_#121214] border border-surface-container">
             <div>
               <div className="flex items-center justify-between pb-2">
@@ -949,7 +909,6 @@ export default function GentleTriage() {
                 Don't let racing thoughts loop. Tap hot tags or vomit messy drafts below:
               </p>
 
-              {/* Bouncy Quick Tags with spring hover */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {quickTags.map((tag) => (
                   <button
@@ -963,7 +922,6 @@ export default function GentleTriage() {
                 ))}
               </div>
 
-              {/* Free-text unjamming textarea */}
               <div className="mt-4 relative">
                 <textarea
                   rows={4}
@@ -1012,7 +970,6 @@ export default function GentleTriage() {
         </div>
       </section>
 
-      {/* Lower Section: Prescription Bar & Instant Flow Starter */}
       <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-12 py-4">
         <div className="bg-surface-container-low rounded-[3rem] p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_4px_0_#121214] border border-surface-container">
           <div className="flex items-center gap-4">

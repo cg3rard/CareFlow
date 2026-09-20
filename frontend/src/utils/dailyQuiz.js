@@ -1,11 +1,3 @@
-/**
- * Daily Quiz Question Bank
- * Provides 4 rotating yes/no questions per day so the "Yes or No Quiz" doesn't
- * feel monotonous. Rotation is seeded by the current date (Asia/Jakarta), so
- * everyone sees the same 4 questions on a given day, and a different set the
- * next day — fully offline-safe, no network/AI call required.
- */
-
 const QUESTION_BANK = {
   'Pola Tidur': [
     'Have you been sleeping well recently?',
@@ -40,8 +32,6 @@ const QUESTION_BANK = {
 const TAG_ORDER = ['Pola Tidur', 'Tension Fisik', 'Cognitive Loop', 'Action Readiness'];
 
 function getJakartaDateSeed() {
-  // Format YYYY-MM-DD in Asia/Jakarta so the rotation changes once per day
-  // regardless of the visitor's local timezone.
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
@@ -51,7 +41,6 @@ function getJakartaDateSeed() {
   return formatter.format(new Date());
 }
 
-// Small deterministic string hash (djb2), sufficient for seeding a daily pick.
 function hashString(value) {
   let hash = 5381;
   for (let i = 0; i < value.length; i += 1) {
@@ -72,21 +61,15 @@ export function getTodaySeed() {
   return getJakartaDateSeed();
 }
 
-/**
- * Derives a lightweight, self-reported stress indicator (0-100) from quiz
- * answers. This is a heuristic proxy only — not a clinical or sensor-based
- * measurement — used purely to give the Stress Indicator tile a visible
- * value while no wearable integration exists.
- */
 export function estimateStressFromAnswers(answers, questions) {
   if (!answers || answers.length === 0) return null;
   const weights = {
     'Pola Tidur': 20,
     'Tension Fisik': 25,
     'Cognitive Loop': 30,
-    'Action Readiness': -10, // "yes, I'm ready to act" slightly lowers perceived stress
+    'Action Readiness': -10,
   };
-  let score = 35; // baseline
+  let score = 35;
   answers.forEach((answer, index) => {
     const tag = questions[index]?.tag;
     const weight = weights[tag] ?? 15;

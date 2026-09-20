@@ -1,15 +1,9 @@
-/**
- * Hybrid Micro-Task Slicer Engine
- * Connects to Go Backend API (/api/slice) with intelligent client-side fallback.
- * Ensures 100% resilience even if the backend is temporarily offline or in flight mode during jury demo.
- */
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export async function sliceTaskWithHybridFallback(content, tag, panicLevel) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 22000); // 22s timeout (Gemini reasoning models can take ~10-15s)
+    const timeoutId = setTimeout(() => controller.abort(), 22000);
 
     const res = await fetch(`${API_BASE_URL}/slice`, {
       method: 'POST',
@@ -39,7 +33,6 @@ export async function sliceTaskWithHybridFallback(content, tag, panicLevel) {
     console.warn('[Careflow Slicer] Backend API unavailable or timed out. Triggering Client Heuristic Engine:', err.message);
   }
 
-  // Pure Client Fallback (100% offline safety)
   return getClientHeuristicSlice(content, tag, panicLevel);
 }
 

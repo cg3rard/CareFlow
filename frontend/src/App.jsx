@@ -12,8 +12,8 @@ import StreakPopup from './components/StreakPopup';
 import ConsultationConsentModal from './components/ConsultationConsentModal';
 import FloatingChat from './components/FloatingChat';
 
-function Footer() {
-  return <footer className="mt-12 w-full border-t border-surface-container bg-surface-container-low py-8"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 lg:flex-row lg:px-12"><div className="flex items-center gap-2.5"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-xs"><img src={logo} alt="Careflow" className="h-full w-full object-contain" /></div><span className="text-base font-bold text-on-surface">Careflow</span></div><span className="text-center text-xs font-medium text-on-surface-variant md:text-right">© 2026 Careflow Space • MindCraft Web Competition 2026</span></div></footer>;
+function Footer({ offsetForSidebar }) {
+  return <footer className={`mt-12 w-full border-t border-surface-container bg-surface-container-low py-8 ${offsetForSidebar ? 'lg:pl-[22rem]' : ''}`}><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 lg:flex-row lg:px-12"><div className="flex items-center gap-2.5"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1 shadow-xs"><img src={logo} alt="Careflow" className="h-full w-full object-contain" /></div><span className="text-base font-bold text-on-surface">Careflow</span></div><span className="text-center text-xs font-medium text-on-surface-variant md:text-right">© 2026 Careflow Space • MindCraft Web Competition 2026</span></div></footer>;
 }
 
 function MainContent() {
@@ -26,7 +26,7 @@ function MainContent() {
   return <>
     <Navbar />
     <main className={`w-full flex-1 bg-background pt-28 xl:pt-20 ${step === 'community' ? 'overflow-visible' : 'overflow-hidden'}`}><div key={workspace ? role : step} className={step === 'community' ? 'w-full' : 'page-stage w-full animate-page-slide-up'}>{workspace || <>{step === 'community' ? <CommunityPage /> : <>{step === 1 && <GentleTriage />}{step === 2 && <FlowStudio />}{step === 3 && <SafeHarbor />}</>}</>}</div></main>
-    <Footer />
+    <Footer offsetForSidebar={step === 'community' && !workspace} />
     <FloatingChat />
     {streakPopup != null && <StreakPopup streakDays={streakPopup} onDone={dismissStreakPopup} />}
     {consultationModalOpen && <ConsultationConsentModal onAccept={() => { setConsentChoice(true); setConsultationModalOpen(false); }} onDecline={() => { setConsentChoice(false); setConsultationModalOpen(false); }} onClose={() => setConsultationModalOpen(false)} />}

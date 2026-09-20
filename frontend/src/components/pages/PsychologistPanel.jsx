@@ -175,8 +175,10 @@ export default function PsychologistPanel() {
             <div className="rounded-[2rem] bg-surface-container-lowest p-10 text-center shadow-[0_4px_0_#121214]">
               <h2 className="text-2xl font-bold text-on-surface">{selectedClient.name}</h2>
               <p className="mt-2 text-sm text-on-surface-variant">This user hasn't agreed to share their data. Private chat is still available below.</p>
-              <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
-              <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
+              <div className="mt-6 grid gap-6 text-left lg:grid-cols-2">
+                <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
+                <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -191,8 +193,10 @@ export default function PsychologistPanel() {
                 <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Mood Calendar</h3><div className="mt-4 grid grid-cols-7 gap-2">{Array.from({ length: 30 }, (_, index) => index + 1).map((day) => { const mood = calendar.get(day); return <div key={day} className={`aspect-square rounded-xl p-1 text-center text-[10px] font-bold ${mood ? moodColor[mood] || 'bg-surface-container' : 'bg-surface-container-low text-on-surface-variant'}`}>{mood && <span className="material-symbols-outlined block text-sm">{mood === 'Happy' ? 'sentiment_very_satisfied' : mood === 'Angry' ? 'sentiment_very_dissatisfied' : mood === 'Sleepy' ? 'bedtime' : 'sentiment_neutral'}</span>}{day}</div>; })}</div></article>
               </div>
               <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Shared notes</h3><div className="mt-4 grid gap-3 md:grid-cols-2">{entries.length ? entries.slice(0, 6).map((entry) => <div key={entry.id} className="rounded-2xl bg-surface-container p-4"><strong className="text-xs">{entry.tag} · Panic {entry.panicLevel}/5</strong><p className="mt-2 text-sm leading-relaxed text-on-surface-variant">{entry.content}</p></div>) : <p className="text-sm text-on-surface-variant">No notes shared yet.</p>}</div></article>
-              <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
-              <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
+                <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
+              </div>
             </div>
           )}
         </main>
@@ -212,12 +216,13 @@ function Stat({ label, value }) {
 function CommunityActivityPanel({ activity, clientName, onViewActivity }) {
   const posts = activity?.posts || [];
   const comments = activity?.comments || [];
-  return <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-[10px] font-bold uppercase tracking-widest text-primary">Community activity</span><h3 className="mt-1 text-xl font-bold text-on-surface">Community footprint</h3><p className="mt-1 text-xs text-on-surface-variant">Named posts and replies from {clientName}. Their anonymous posts are not shown.</p></div><span className="rounded-full bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container">{posts.length + comments.length} activities</span></div><div className="mt-5 grid gap-4 lg:grid-cols-2"><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Recent posts</h4><div className="mt-2 space-y-2">{posts.length ? posts.map((post) => <div key={post.id} className="rounded-2xl bg-surface-container p-3"><strong className="text-xs text-primary">{post.topicTag}</strong><p className="mt-1 text-sm leading-relaxed text-on-surface">{post.body}</p><button type="button" onClick={() => onViewActivity(post.id)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">No named posts recorded.</p>}</div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Recent replies</h4><div className="mt-2 space-y-2">{comments.length ? comments.map((comment) => <div key={comment.id} className="rounded-2xl bg-surface-container p-3"><p className="text-[11px] font-bold text-on-surface">Replying to {comment.postIsAnonymous ? 'an anonymous post' : comment.postAuthorName}</p><p className="mt-1 text-xs italic text-on-surface-variant">“{comment.postPreview}”</p><p className="mt-2 text-sm leading-relaxed text-on-surface">{comment.body}</p><button type="button" onClick={() => onViewActivity(comment.postId)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">No community replies yet.</p>}</div></div></div></article>;
+  return <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-[10px] font-bold uppercase tracking-widest text-primary">Community activity</span><h3 className="mt-1 text-xl font-bold text-on-surface">Community footprint</h3><p className="mt-1 text-xs text-on-surface-variant">Named posts and replies from {clientName}. Their anonymous posts are not shown.</p></div><span className="rounded-full bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container">{posts.length + comments.length} activities</span></div><div className="mt-5 grid gap-4"><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Recent posts</h4><div className="mt-2 max-h-[15.5rem] space-y-2 overflow-y-auto pr-1">{posts.length ? posts.map((post) => <div key={post.id} className="rounded-2xl bg-surface-container p-3"><strong className="text-xs text-primary">{post.topicTag}</strong><p className="mt-1 line-clamp-2 text-sm leading-relaxed text-on-surface">{post.body}</p><button type="button" onClick={() => onViewActivity(post.id)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">No named posts recorded.</p>}</div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Recent replies</h4><div className="mt-2 max-h-[15.5rem] space-y-2 overflow-y-auto pr-1">{comments.length ? comments.map((comment) => <div key={comment.id} className="rounded-2xl bg-surface-container p-3"><p className="text-[11px] font-bold text-on-surface">Replying to {comment.postIsAnonymous ? 'an anonymous post' : comment.postAuthorName}</p><p className="mt-1 line-clamp-1 text-xs italic text-on-surface-variant">“{comment.postPreview}”</p><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-surface">{comment.body}</p><button type="button" onClick={() => onViewActivity(comment.postId)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">No community replies yet.</p>}</div></div></div></article>;
 }
 
 function ChatPanel({ messages, availableDates, selectedDate, onSelectDate, onShowAll, currentClient, message, setMessage, submit, sending }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const messageScrollRef = useRef(null);
+  const historyRef = useRef(null);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const container = messageScrollRef.current;
@@ -225,6 +230,16 @@ function ChatPanel({ messages, availableDates, selectedDate, onSelectDate, onSho
     });
     return () => window.cancelAnimationFrame(frame);
   }, [currentClient.id, selectedDate, messages.length]);
+  useEffect(() => {
+    if (!historyOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (historyRef.current && !historyRef.current.contains(event.target)) {
+        setHistoryOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [historyOpen]);
   const selectDate = (date) => {
     onSelectDate(date);
     setHistoryOpen(false);
@@ -235,16 +250,32 @@ function ChatPanel({ messages, availableDates, selectedDate, onSelectDate, onSho
   };
 
   return (
-    <article className="mt-6 rounded-[2rem] bg-surface-container-lowest p-6 text-left shadow-[0_4px_0_#121214]">
+    <article className="relative mt-6 rounded-[2rem] bg-surface-container-lowest p-6 text-left shadow-[0_4px_0_#121214]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h3 className="text-2xl font-bold text-on-surface">Chat with {currentClient.name}</h3>
           <p className="mt-1 text-xs text-on-surface-variant">{selectedDate ? `Showing messages from ${readableDate(selectedDate)}.` : "Showing this user's entire chat history."}</p>
         </div>
-        <button type="button" onClick={() => setHistoryOpen(true)} className="inline-flex items-center gap-2 rounded-full bg-tertiary-container px-4 py-2 text-xs font-bold text-on-tertiary-container shadow-[0_2px_0_#121214] hover:brightness-95">
-          <span className="material-symbols-outlined text-base" aria-hidden="true">calendar_month</span>
-          Calendar history
-        </button>
+        <div className="relative">
+          <button type="button" onClick={() => setHistoryOpen((value) => !value)} aria-expanded={historyOpen} className="inline-flex items-center gap-2 rounded-full bg-tertiary-container px-4 py-2 text-xs font-bold text-on-tertiary-container shadow-[0_2px_0_#121214] hover:brightness-95">
+            <span className="material-symbols-outlined text-base" aria-hidden="true">calendar_month</span>
+            Calendar history
+          </button>
+          {historyOpen && (
+            <div ref={historyRef} role="dialog" aria-modal="true" aria-labelledby="chat-history-title" className="animate-community-panel absolute right-0 top-full z-30 mt-2 w-[20rem] rounded-[2rem] border-2 border-outline-variant bg-surface-container-lowest p-5 shadow-[0_16px_40px_rgb(27,27,29,0.18)]">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary">Chat history</p>
+                  <h4 id="chat-history-title" className="mt-1 text-lg font-bold text-on-surface">{currentClient.name}</h4>
+                </div>
+                <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close calendar history" className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high">
+                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+              </div>
+              <ChatHistoryCalendar availableDates={availableDates} selectedDate={selectedDate} onSelectDate={selectDate} onShowAll={showAllDates} />
+            </div>
+          )}
+        </div>
       </div>
       <div ref={messageScrollRef} className="mt-4 h-[30rem] overflow-y-auto rounded-2xl bg-surface-container p-4">
         <div className="space-y-1">
@@ -257,23 +288,6 @@ function ChatPanel({ messages, availableDates, selectedDate, onSelectDate, onSho
         </div>
       </div>
       <form onSubmit={submit} className="mt-4 flex gap-3"><input value={message} onChange={(event) => setMessage(event.target.value)} maxLength="2000" placeholder="Write a response for the user…" className="min-w-0 flex-1 rounded-full bg-surface-container px-5 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-tertiary/30" /><button disabled={sending} className="rounded-full bg-tertiary px-6 py-3 text-sm font-bold text-on-tertiary disabled:opacity-50">Send</button></form>
-
-      {historyOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="chat-history-title">
-          <div className="w-full max-w-sm rounded-[2rem] border-2 border-outline-variant bg-surface-container-lowest p-5 shadow-[0_8px_0_#121214]">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary">Chat history</p>
-                <h4 id="chat-history-title" className="mt-1 text-lg font-bold text-on-surface">{currentClient.name}</h4>
-              </div>
-              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close calendar history" className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high">
-                <span className="material-symbols-outlined" aria-hidden="true">close</span>
-              </button>
-            </div>
-            <ChatHistoryCalendar availableDates={availableDates} selectedDate={selectedDate} onSelectDate={selectDate} onShowAll={showAllDates} />
-          </div>
-        </div>
-      )}
     </article>
   );
 }

@@ -89,9 +89,6 @@ type SessionRecord struct {
 	TotalXP             int       `json:"totalXp"`
 }
 
-// DailyMetric captures one day's self-reported sleep duration and stress
-// indicator for a user. There is at most one row per user per calendar day
-// (upserted), which is what powers the last-7-day sleep/stress trend.
 type DailyMetric struct {
 	ID          string    `json:"id"`
 	UserID      string    `json:"userId"`
@@ -102,7 +99,6 @@ type DailyMetric struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// DeclutterEntry stores one cognitive de-clutter (brain-dump) submission.
 type DeclutterEntry struct {
 	ID                    string    `json:"id"`
 	UserID                string    `json:"userId"`
@@ -114,9 +110,6 @@ type DeclutterEntry struct {
 	CreatedAt             time.Time `json:"createdAt"`
 }
 
-// TaskCompletion records the real moment a Flow Studio micro-task was
-// marked done, so the "Focus Activity" chart reflects genuine usage
-// instead of mock data.
 type TaskCompletion struct {
 	ID          string    `json:"id"`
 	UserID      string    `json:"userId"`
@@ -162,16 +155,12 @@ type SessionInput struct {
 	TotalXP             int    `json:"totalXp"`
 }
 
-// DailyMetricInput is the payload accepted by POST /api/metrics/daily.
-// SleepHours and StressScore are pointers so the client can send just one of
-// the two without overwriting the other for today's row.
 type DailyMetricInput struct {
 	SleepHours  *float64 `json:"sleepHours,omitempty"`
 	StressScore *int     `json:"stressScore,omitempty"`
 	StressLabel string   `json:"stressLabel,omitempty"`
 }
 
-// DeclutterInput is the payload accepted by POST /api/declutter.
 type DeclutterInput struct {
 	Content               string `json:"content"`
 	Tag                   string `json:"tag"`
@@ -179,7 +168,6 @@ type DeclutterInput struct {
 	ShareWithPsychologist bool   `json:"shareWithPsychologist,omitempty"`
 }
 
-// TaskCompletionInput is the payload accepted by POST /api/task-completions.
 type TaskCompletionInput struct {
 	XP int `json:"xp"`
 }
@@ -260,6 +248,7 @@ func main() {
 	mux.HandleFunc("GET /api/admin/users", handleAdminUsers(store))
 	mux.HandleFunc("POST /api/admin/users", handleAdminCreateUser(store))
 	mux.HandleFunc("PATCH /api/admin/users/{id}", handleAdminUserUpdate(store))
+	mux.HandleFunc("DELETE /api/admin/users/{id}", handleAdminDeleteUser(store))
 	mux.HandleFunc("POST /api/chat/messages", handleCreateChatMessage(store))
 	mux.HandleFunc("GET /api/chat/messages", handleListChatMessages(store))
 	mux.HandleFunc("GET /api/chat/ws", handleChatWebSocket(store, chatHub, cfg.FrontendOrigin))
@@ -329,8 +318,6 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tmpPath, s.path)
 }
 
-// parseDateOfBirth validates an optional "YYYY-MM-DD" date string, rejecting
-// dates in the future or implausibly far in the past.
 func parseDateOfBirth(raw string) (*string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -488,8 +475,6 @@ func (s *Store) sessionsForUser(userID string) []SessionRecord {
 	return result
 }
 
-// jakartaToday returns today's calendar date string ("YYYY-MM-DD") in the
-// Asia/Jakarta timezone, matching the streak calculation convention.
 func jakartaToday() string {
 	location, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
@@ -498,8 +483,6 @@ func jakartaToday() string {
 	return time.Now().In(location).Format("2006-01-02")
 }
 
-// upsertDailyMetric records (or updates) today's sleep/stress entry for a
-// user. Passing a nil field leaves that column untouched on update.
 func (s *Store) upsertDailyMetric(userID string, input DailyMetricInput) (DailyMetric, error) {
 	if input.SleepHours != nil && (*input.SleepHours < 0 || *input.SleepHours > 24) {
 		return DailyMetric{}, errors.New("invalid sleep duration")
@@ -546,8 +529,6 @@ func (s *Store) upsertDailyMetric(userID string, input DailyMetricInput) (DailyM
 	return metric, nil
 }
 
-// dailyMetricsForUserLastWeek returns up to the last 7 calendar days of
-// sleep/stress metrics for a user, newest first.
 func (s *Store) dailyMetricsForUserLastWeek(userID string) []DailyMetric {
 	if s.db != nil {
 		result, err := s.dailyMetricsForUserLastWeekPostgres(userID)
@@ -570,7 +551,6 @@ func (s *Store) dailyMetricsForUserLastWeek(userID string) []DailyMetric {
 	return result
 }
 
-// addDeclutterEntry stores one cognitive de-clutter (brain-dump) submission.
 func (s *Store) addDeclutterEntry(userID string, input DeclutterInput) (DeclutterEntry, error) {
 	content := strings.TrimSpace(input.Content)
 	tag := strings.TrimSpace(input.Tag)
@@ -630,7 +610,6 @@ func (s *Store) declutterEntriesForUser(userID string) []DeclutterEntry {
 	return result
 }
 
-// addTaskCompletion records the real moment a micro-task was completed.
 func (s *Store) addTaskCompletion(userID string, input TaskCompletionInput) (TaskCompletion, error) {
 	if input.XP < 0 || input.XP > 1000 {
 		return TaskCompletion{}, errors.New("invalid XP value")
@@ -648,8 +627,6 @@ func (s *Store) addTaskCompletion(userID string, input TaskCompletionInput) (Tas
 	return completion, nil
 }
 
-// taskCompletionsForUserLastWeek returns up to the last 7 days of
-// task-completion timestamps for a user, used to plot real focus activity.
 func (s *Store) taskCompletionsForUserLastWeek(userID string) []TaskCompletion {
 	if s.db != nil {
 		result, err := s.taskCompletionsForUserLastWeekPostgres(userID)
@@ -672,10 +649,6 @@ func (s *Store) taskCompletionsForUserLastWeek(userID string) []TaskCompletion {
 	return result
 }
 
-// lifetimeXPForUser sums XP across every recorded task completion for a
-// user (not just the last 7 days), so the Flow Studio level/XP badge is
-// backed by a persistent, ever-growing total instead of a per-session
-// counter that resets on reload.
 func (s *Store) lifetimeXPForUser(userID string) int {
 	if s.db != nil {
 		total, err := s.lifetimeXPForUserPostgres(userID)
@@ -848,8 +821,6 @@ func handleCreateDeclutterEntry(store *Store) http.HandlerFunc {
 		if err := decodeJSON(w, r, &input); err != nil {
 			return
 		}
-		// The backend, not the browser, decides whether this final note is
-		// shared. An assigned psychologist can see it only with saved consent.
 		input.ShareWithPsychologist = user.PsychologistID != "" && user.ShareDataWithPsychologist
 		entry, err := store.addDeclutterEntry(user.ID, input)
 		if err != nil {
@@ -1075,7 +1046,7 @@ func enableCORS(next http.Handler, allowedOrigin string) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
