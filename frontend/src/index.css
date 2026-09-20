@@ -265,6 +265,35 @@
 .animate-eq-2 { animation: eqBar2 0.6s ease-in-out infinite; }
 .animate-eq-3 { animation: eqBar3 0.9s ease-in-out infinite; }
 
+/* Bell ring animation for the Zen Chime notification button */
+@keyframes zenBellRing {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-18deg); }
+  30% { transform: rotate(14deg); }
+  45% { transform: rotate(-10deg); }
+  60% { transform: rotate(7deg); }
+  75% { transform: rotate(-4deg); }
+  90% { transform: rotate(2deg); }
+}
+
+.animate-zen-bell-ring {
+  animation: zenBellRing 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  transform-origin: top center;
+}
+
+@keyframes zenBellPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--zen-bell-pulse-color, 99, 102, 241), 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(var(--zen-bell-pulse-color, 99, 102, 241), 0);
+  }
+}
+
+.animate-zen-bell-pulse {
+  animation: zenBellPulse 0.7s ease-out;
+}
+
 /* Shake and crush animation for worry burner */
 @keyframes paperCrush {
   0% {

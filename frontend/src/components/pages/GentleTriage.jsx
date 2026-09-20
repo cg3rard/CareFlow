@@ -28,6 +28,7 @@ export default function GentleTriage() {
   } = useFlow();
 
   const [bellRung, setBellRung] = useState(false);
+  const [bellActive, setBellActive] = useState(false);
   const [activeQuote, setActiveQuote] = useState(null);
 
   // Multi-step Interactive Quick Quiz — 4 questions rotate daily so the check-in
@@ -111,6 +112,7 @@ export default function GentleTriage() {
   };
 
   const handleZenBell = () => {
+    setBellActive((prev) => !prev);
     setBellRung(true);
     setTimeout(() => setBellRung(false), 2000);
   };
@@ -272,11 +274,15 @@ export default function GentleTriage() {
             <button
               onClick={handleZenBell}
               className={`w-10 h-10 rounded-full bg-surface-container flex items-center justify-center hover:bg-surface-container-high active:scale-90 transition-all text-on-surface cursor-pointer shadow-[0_2px_0_#121214] ${
-                bellRung ? 'ring-2 ring-primary scale-110' : ''
-              }`}
+                bellActive ? 'ring-2 ring-emerald-500 scale-110' : ''
+              } ${bellRung ? 'animate-zen-bell-pulse' : ''}`}
               title="Zen Chime: Bunyikan Lonceng Ketenangan"
+              aria-pressed={bellActive}
             >
-              <span className={`material-symbols-outlined text-[20px] ${bellRung ? 'text-primary animate-bounce' : ''}`}>
+              <span
+                className={`material-symbols-outlined text-[20px] ${bellActive ? 'text-emerald-500' : ''} ${bellRung ? 'animate-zen-bell-ring' : ''}`}
+                style={bellActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
                 notifications
               </span>
             </button>

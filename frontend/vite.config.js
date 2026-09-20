@@ -13,7 +13,7 @@ export default defineConfig({
     // inside Docker with a bind-mounted source directory (notably on Windows).
     watch: {
       usePolling: true,
-      interval: 300,
+      interval: 100,
     },
     host: true,
     strictPort: true,
