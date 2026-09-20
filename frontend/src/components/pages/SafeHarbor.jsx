@@ -162,7 +162,7 @@ export default function SafeHarbor() {
             </div>
 
             {/* 2. Mood Calendar Bento Block (Authentic 7-Column Emoji Matrix) */}
-            <div className="rounded-[2rem] bg-surface-container-lowest p-6 sm:p-8 shadow-[0_6px_0_#121214] space-y-4 border border-surface-container">
+            <div className="relative rounded-[2rem] bg-surface-container-lowest p-6 sm:p-8 shadow-[0_6px_0_#121214] space-y-4 border border-surface-container overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -256,6 +256,42 @@ export default function SafeHarbor() {
                   <span className="text-on-surface font-medium">Bored ({moodCountsThisMonth.Bored || 0})</span>
                 </div>
               </div>
+
+              {/* Interactive Day Details Popup — contained within Mood Calendar */}
+              {selectedDayDetail && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn rounded-[2rem]">
+                  <div className="relative w-full max-w-md bg-white rounded-[2rem] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.2)] border-2 border-[#121214] space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                        Detail Catatan Kalender
+                      </span>
+                      <button
+                        onClick={() => setSelectedDayDetail(null)}
+                        className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className={`w-14 h-14 rounded-2xl ${selectedDayDetail.color} flex items-center justify-center shadow-[0_2px_0_#121214]`}>
+                        <span className="text-2xl font-bold">{selectedDayDetail.day}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-on-surface">{selectedDayDetail.title}</h3>
+                        <span className="text-xs font-semibold text-primary">Status: {selectedDayDetail.mood}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedDayDetail(null)}
+                      className="w-full py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all"
+                    >
+                      Tutup Catatan
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -363,42 +399,6 @@ export default function SafeHarbor() {
           </div>
         </div>
       </div>
-
-      {/* Interactive Day Details Modal */}
-      {selectedDayDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md bg-white rounded-[2rem] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.2)] border-2 border-[#121214] space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                Detail Catatan Kalender
-              </span>
-              <button
-                onClick={() => setSelectedDayDetail(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className={`w-14 h-14 rounded-2xl ${selectedDayDetail.color} flex items-center justify-center shadow-[0_2px_0_#121214]`}>
-                <span className="text-2xl font-bold">{selectedDayDetail.day}</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-on-surface">{selectedDayDetail.title}</h3>
-                <span className="text-xs font-semibold text-primary">Status: {selectedDayDetail.mood}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSelectedDayDetail(null)}
-              className="w-full py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all"
-            >
-              Tutup Catatan
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
