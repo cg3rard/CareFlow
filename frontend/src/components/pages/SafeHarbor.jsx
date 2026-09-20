@@ -390,12 +390,6 @@ export default function SafeHarbor() {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-surface-container text-xs text-on-surface leading-relaxed space-y-1">
-              <div><strong>Durasi Latihan:</strong> 5 menit Box Breathing</div>
-              <div><strong>Stres Baseline:</strong> Menurun 38%</div>
-              <div><strong>Catatan:</strong> "Langkah mikro berhasil memecah kebuntuan mental."</div>
-            </div>
-
             <button
               onClick={() => setSelectedDayDetail(null)}
               className="w-full py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all"
