@@ -33,7 +33,7 @@ function sessionToVaultEntry(session) {
 }
 
 export function FlowProvider({ children }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => window.location.pathname.startsWith('/community') ? 'community' : 1);
   const [selectedMood, setSelectedMood] = useState('Happy');
   const [selectedMascot, setSelectedMascot] = useState('Gentle');
   const [streakDays, setStreakDays] = useState(0);
@@ -50,6 +50,8 @@ export function FlowProvider({ children }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [psychologistClients, setPsychologistClients] = useState([]);
   const [clientData, setClientData] = useState(null);
+  const [communityPosts, setCommunityPosts] = useState([]);
+  const [communityActivity, setCommunityActivity] = useState(null);
   const [brainDumpOutcome, setBrainDumpOutcome] = useState(null);
   const chatSocketRef = useRef(null);
 
@@ -96,6 +98,23 @@ export function FlowProvider({ children }) {
   const GUEST_QUIZ_KEY = 'careflow_guest_quiz_date';
 
   const token = () => sessionStorage.getItem(TOKEN_KEY);
+  const navigateTo = (nextStep) => {
+    const nextPath = nextStep === 'community' ? '/community/' : '/';
+    if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+    setStep(nextStep);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const openCommunityFeed = (postId) => {
+    window.history.pushState({}, '', `/community/feed/${postId}`);
+    setStep('community');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const syncPath = () => setStep(window.location.pathname.startsWith('/community') ? 'community' : 1);
+    window.addEventListener('popstate', syncPath);
+    return () => window.removeEventListener('popstate', syncPath);
+  }, []);
 
   const quizLoggedToday = useMemo(() => {
     const today = jakartaToday();
@@ -274,7 +293,9 @@ export function FlowProvider({ children }) {
     setStreakDays(0);
     setGuestAllowed(false);
     setVaultEntries([]);
-    setStep(1);
+    setCommunityPosts([]);
+    setCommunityActivity(null);
+    navigateTo(1);
   };
 
   const toggleSoundscape = (mode = 'rain') => {
@@ -458,8 +479,7 @@ export function FlowProvider({ children }) {
     setBrainDumpOutcome(null);
     setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
     setTotalXp(0);
-    setStep(1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateTo(1);
   };
 
   const loadPsychologists = async () => {
@@ -470,9 +490,9 @@ export function FlowProvider({ children }) {
 
   const openPsychologistFlow = () => {
     if (!authUser) { startLogin(); return; }
-    if (authUser.role === 'admin') { setStep('admin'); return; }
-    if (authUser.role === 'psychologist') { setStep('psychologist'); return; }
-    setStep(3);
+    if (authUser.role === 'admin') { navigateTo('admin'); return; }
+    if (authUser.role === 'psychologist') { navigateTo('psychologist'); return; }
+    navigateTo(3);
     setConsultationModalOpen(true);
   };
 
@@ -532,21 +552,52 @@ export function FlowProvider({ children }) {
     try { const result = await request(`/psychologist/clients/${clientId}`); setClientData(result); }
     catch (error) { setAuthError(error.message); setClientData(null); }
   };
+  const loadCommunity = async () => {
+    const result = await request('/community/posts');
+    setCommunityPosts(result.posts || []);
+    return result.posts || [];
+  };
+  const loadCommunityPost = async (postId) => request(`/community/posts/${postId}`);
+  const createCommunityPost = async (input) => {
+    const created = await request('/community/posts', { method: 'POST', body: JSON.stringify(input) });
+    await loadCommunity();
+    return created;
+  };
+  const addCommunityComment = async (postId, body) => {
+    const created = await request(`/community/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+    await loadCommunity();
+    return created;
+  };
+  const toggleCommunityLike = async (postId) => {
+    const result = await request(`/community/posts/${postId}/like`, { method: 'POST' });
+    setCommunityPosts((previous) => previous.map((post) => post.id === postId ? { ...post, likedByMe: result.liked, likeCount: Math.max(0, post.likeCount + (result.liked ? 1 : -1)) } : post));
+    return result;
+  };
+  const recordCommunityShare = async (postId) => {
+    const result = await request(`/community/posts/${postId}/share`, { method: 'POST' });
+    setCommunityPosts((previous) => previous.map((post) => post.id === postId ? { ...post, shareCount: post.shareCount + 1 } : post));
+    return result;
+  };
+  const loadCommunityActivity = async (clientId) => {
+    try { const result = await request(`/psychologist/clients/${clientId}/community-activity`); setCommunityActivity(result); return result; }
+    catch (error) { setAuthError(error.message); setCommunityActivity(null); return null; }
+  };
 
   const value = useMemo(() => ({
-    step, setStep, selectedMood, setSelectedMood, selectedMascot, setSelectedMascot,
+    step, setStep, navigateTo, openCommunityFeed, selectedMood, setSelectedMood, selectedMascot, setSelectedMascot,
     streakDays, streakPopup, dismissStreakPopup: () => setStreakPopup(null), authUser, isAuthLoading, guestAllowed, authError, setAuthError,
     authenticate, continueAsGuest, startLogin, logout,
     consultationModalOpen, setConsultationModalOpen, consentChoice, setConsentChoice, openPsychologistFlow,
     psychologists, loadPsychologists, selectPsychologist, disconnectPsychologist, chatMessages, chatAvailableDates, loadChat, sendChat,
     adminUsers, loadAdminUsers, updateAdminUser, createAdminUser, psychologistClients, loadPsychologistClients, clientData, loadClientData,
+    communityPosts, loadCommunity, loadCommunityPost, createCommunityPost, addCommunityComment, toggleCommunityLike, recordCommunityShare, communityActivity, loadCommunityActivity,
     triageData, setTriageData, processTriage, isProcessingSlice, brainDumpOutcome,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp,
     vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
     quizLoggedToday, todayMetric, weeklyMetrics, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, brainDumpOutcome, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics, consultationModalOpen, consentChoice, psychologists, chatMessages, chatAvailableDates, adminUsers, psychologistClients, clientData]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, brainDumpOutcome, activeSound, masterVolume, microTasks, affirmation, totalXp, taskCompletionLog, weeklyTaskCompletions, lifetimeXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric, weeklyMetrics, consultationModalOpen, consentChoice, psychologists, chatMessages, chatAvailableDates, adminUsers, psychologistClients, clientData, communityPosts, communityActivity]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

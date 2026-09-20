@@ -6,6 +6,7 @@ import FlowStudio from './components/pages/FlowStudio';
 import SafeHarbor from './components/pages/SafeHarbor';
 import AdminPanel from './components/pages/AdminPanel';
 import PsychologistPanel from './components/pages/PsychologistPanel';
+import CommunityPage from './components/pages/CommunityPage';
 import LoginPage from './components/LoginPage';
 import StreakPopup from './components/StreakPopup';
 import ConsultationConsentModal from './components/ConsultationConsentModal';
@@ -20,10 +21,11 @@ function MainContent() {
   if (isAuthLoading) return <main className="flex min-h-screen items-center justify-center bg-background text-sm font-bold text-on-surface-variant">Memuat Careflow...</main>;
   if (!authUser && !guestAllowed) return <LoginPage />;
   const role = authUser?.role;
-  const workspace = role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null;
+  const isCommunityDetail = window.location.pathname.startsWith('/community/feed/');
+  const workspace = !isCommunityDetail && (role === 'admin' ? <AdminPanel /> : role === 'psychologist' ? <PsychologistPanel /> : null);
   return <>
     <Navbar />
-    <main className="w-full flex-1 overflow-hidden bg-background pt-28 xl:pt-20"><div key={workspace ? role : step} className="page-stage w-full animate-page-slide-up">{workspace || <>{step === 1 && <GentleTriage />}{step === 2 && <FlowStudio />}{step === 3 && <SafeHarbor />}</>}</div></main>
+    <main className={`w-full flex-1 bg-background pt-28 xl:pt-20 ${step === 'community' ? 'overflow-visible' : 'overflow-hidden'}`}><div key={workspace ? role : step} className={step === 'community' ? 'w-full' : 'page-stage w-full animate-page-slide-up'}>{workspace || <>{step === 'community' ? <CommunityPage /> : <>{step === 1 && <GentleTriage />}{step === 2 && <FlowStudio />}{step === 3 && <SafeHarbor />}</>}</>}</div></main>
     <Footer />
     <FloatingChat />
     {streakPopup != null && <StreakPopup streakDays={streakPopup} onDone={dismissStreakPopup} />}

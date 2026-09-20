@@ -92,6 +92,9 @@ export default function PsychologistPanel() {
     loadChat,
     sendChat,
     authError,
+    communityActivity,
+    loadCommunityActivity,
+    openCommunityFeed,
   } = useFlow();
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedChatDate, setSelectedChatDate] = useState('');
@@ -104,6 +107,7 @@ export default function PsychologistPanel() {
     if (!selectedClient) return;
     setSelectedChatDate('');
     void loadClientData(selectedClient.id);
+    void loadCommunityActivity(selectedClient.id);
     void loadChat(selectedClient.id);
   }, [selectedClient?.id]);
   useEffect(() => {
@@ -171,6 +175,7 @@ export default function PsychologistPanel() {
             <div className="rounded-[2rem] bg-surface-container-lowest p-10 text-center shadow-[0_4px_0_#121214]">
               <h2 className="text-2xl font-bold text-on-surface">{selectedClient.name}</h2>
               <p className="mt-2 text-sm text-on-surface-variant">User belum menyetujui pembagian data. Chat privat tetap tersedia di bawah.</p>
+              <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
               <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
             </div>
           ) : (
@@ -186,6 +191,7 @@ export default function PsychologistPanel() {
                 <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Mood Calendar</h3><div className="mt-4 grid grid-cols-7 gap-2">{Array.from({ length: 30 }, (_, index) => index + 1).map((day) => { const mood = calendar.get(day); return <div key={day} className={`aspect-square rounded-xl p-1 text-center text-[10px] font-bold ${mood ? moodColor[mood] || 'bg-surface-container' : 'bg-surface-container-low text-on-surface-variant'}`}>{mood && <span className="material-symbols-outlined block text-sm">{mood === 'Happy' ? 'sentiment_very_satisfied' : mood === 'Angry' ? 'sentiment_very_dissatisfied' : mood === 'Sleepy' ? 'bedtime' : 'sentiment_neutral'}</span>}{day}</div>; })}</div></article>
               </div>
               <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Catatan yang dibagikan</h3><div className="mt-4 grid gap-3 md:grid-cols-2">{entries.length ? entries.slice(0, 6).map((entry) => <div key={entry.id} className="rounded-2xl bg-surface-container p-4"><strong className="text-xs">{entry.tag} · Panik {entry.panicLevel}/5</strong><p className="mt-2 text-sm leading-relaxed text-on-surface-variant">{entry.content}</p></div>) : <p className="text-sm text-on-surface-variant">Belum ada catatan dibagikan.</p>}</div></article>
+              <CommunityActivityPanel activity={communityActivity} clientName={selectedClient.name} onViewActivity={openCommunityFeed} />
               <ChatPanel messages={chatMessages} availableDates={chatAvailableDates} selectedDate={selectedChatDate} onSelectDate={setSelectedChatDate} onShowAll={showAllChat} currentClient={selectedClient} message={message} setMessage={setMessage} submit={submit} sending={sending} />
             </div>
           )}
@@ -201,6 +207,12 @@ function EmptyClientState() {
 
 function Stat({ label, value }) {
   return <div className="rounded-2xl bg-surface-container-lowest p-5 shadow-[0_3px_0_#121214]"><span className="text-[10px] font-bold uppercase text-on-surface-variant">{label}</span><strong className="mt-2 block text-2xl text-on-surface">{value}</strong></div>;
+}
+
+function CommunityActivityPanel({ activity, clientName, onViewActivity }) {
+  const posts = activity?.posts || [];
+  const comments = activity?.comments || [];
+  return <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-[10px] font-bold uppercase tracking-widest text-primary">Community activity</span><h3 className="mt-1 text-xl font-bold text-on-surface">Jejak ruang komunitas</h3><p className="mt-1 text-xs text-on-surface-variant">Posting bernama dan balasan {clientName}. Post anonim miliknya tidak ditampilkan.</p></div><span className="rounded-full bg-primary-container px-3 py-1.5 text-xs font-bold text-on-primary-container">{posts.length + comments.length} aktivitas</span></div><div className="mt-5 grid gap-4 lg:grid-cols-2"><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Posting terbaru</h4><div className="mt-2 space-y-2">{posts.length ? posts.map((post) => <div key={post.id} className="rounded-2xl bg-surface-container p-3"><strong className="text-xs text-primary">{post.topicTag}</strong><p className="mt-1 text-sm leading-relaxed text-on-surface">{post.body}</p><button type="button" onClick={() => onViewActivity(post.id)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">Tidak ada posting bernama yang tercatat.</p>}</div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Balasan terbaru</h4><div className="mt-2 space-y-2">{comments.length ? comments.map((comment) => <div key={comment.id} className="rounded-2xl bg-surface-container p-3"><p className="text-[11px] font-bold text-on-surface">Menanggapi {comment.postIsAnonymous ? 'postingan anonim' : comment.postAuthorName}</p><p className="mt-1 text-xs italic text-on-surface-variant">“{comment.postPreview}”</p><p className="mt-2 text-sm leading-relaxed text-on-surface">{comment.body}</p><button type="button" onClick={() => onViewActivity(comment.postId)} className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-on-primary shadow-[0_2px_0_#121214]"><span className="material-symbols-outlined text-sm">open_in_new</span>View Activity</button></div>) : <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">Belum ada balasan komunitas.</p>}</div></div></div></article>;
 }
 
 function ChatPanel({ messages, availableDates, selectedDate, onSelectDate, onShowAll, currentClient, message, setMessage, submit, sending }) {

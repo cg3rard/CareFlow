@@ -125,24 +125,26 @@ type TaskCompletion struct {
 }
 
 type persistedData struct {
-	Users              []User              `json:"users"`
-	Sessions           []SessionRecord     `json:"sessions"`
-	DailyMetrics       []DailyMetric       `json:"dailyMetrics"`
-	DeclutterEntries   []DeclutterEntry    `json:"declutterEntries"`
-	TaskCompletions  []TaskCompletion `json:"taskCompletions"`
-	ChatMessages     []ChatMessage    `json:"chatMessages"`
+	Users            []User              `json:"users"`
+	Sessions         []SessionRecord     `json:"sessions"`
+	DailyMetrics     []DailyMetric       `json:"dailyMetrics"`
+	DeclutterEntries []DeclutterEntry    `json:"declutterEntries"`
+	TaskCompletions  []TaskCompletion    `json:"taskCompletions"`
+	ChatMessages     []ChatMessage       `json:"chatMessages"`
+	Community        CommunityState      `json:"community"`
 }
 
 type Store struct {
-	mu                 sync.RWMutex
-	path               string
-	db                 *sql.DB
-	users              []User
-	sessions           []SessionRecord
-	dailyMetrics       []DailyMetric
-	declutterEntries   []DeclutterEntry
+	mu               sync.RWMutex
+	path             string
+	db               *sql.DB
+	users            []User
+	sessions         []SessionRecord
+	dailyMetrics     []DailyMetric
+	declutterEntries []DeclutterEntry
 	taskCompletions  []TaskCompletion
 	chatMessages     []ChatMessage
+	community        CommunityState
 	tokens           map[string]string
 }
 
@@ -261,6 +263,13 @@ func main() {
 	mux.HandleFunc("POST /api/chat/messages", handleCreateChatMessage(store))
 	mux.HandleFunc("GET /api/chat/messages", handleListChatMessages(store))
 	mux.HandleFunc("GET /api/chat/ws", handleChatWebSocket(store, chatHub, cfg.FrontendOrigin))
+	mux.HandleFunc("GET /api/community/posts", handleCommunityFeed(store))
+	mux.HandleFunc("POST /api/community/posts", handleCreateCommunityPost(store))
+	mux.HandleFunc("GET /api/community/posts/{id}", handleCommunityPost(store))
+	mux.HandleFunc("POST /api/community/posts/{id}/comments", handleCreateCommunityComment(store))
+	mux.HandleFunc("POST /api/community/posts/{id}/like", handleToggleCommunityLike(store))
+	mux.HandleFunc("POST /api/community/posts/{id}/share", handleCommunityShare(store))
+	mux.HandleFunc("GET /api/psychologist/clients/{id}/community-activity", handlePsychologistCommunityActivity(store))
 
 	serverAddr := ":" + cfg.Port
 	log.Printf("[Careflow Core] listening on %s (%s)", serverAddr, cfg.AppEnv)
@@ -297,6 +306,7 @@ func newStore(path string) (*Store, error) {
 	store.declutterEntries = data.DeclutterEntries
 	store.taskCompletions = data.TaskCompletions
 	store.chatMessages = data.ChatMessages
+	store.community = data.Community
 	return store, nil
 }
 
@@ -304,7 +314,11 @@ func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return err
 	}
-	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries, TaskCompletions: s.taskCompletions, ChatMessages: s.chatMessages}, "", "  ")
+	contents, err := json.MarshalIndent(persistedData{
+		Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics,
+		DeclutterEntries: s.declutterEntries, TaskCompletions: s.taskCompletions,
+		ChatMessages: s.chatMessages, Community: s.community,
+	}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -1074,10 +1088,19 @@ func enableCORS(next http.Handler, allowedOrigin string) http.Handler {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	return decodeJSONWithLimit(w, r, target, 64<<10)
+}
+
+func decodeJSONWithLimit(w http.ResponseWriter, r *http.Request, target any, limit int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "ukuran foto atau video terlalu besar; maksimal 4 MB")
+			return err
+		}
 		writeError(w, http.StatusBadRequest, "format data tidak valid")
 		return err
 	}
