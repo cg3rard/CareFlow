@@ -1,4 +1,5 @@
 import { useFlow } from '../context/FlowContext';
+import logo from '../assets/Logo_careflow.png';
 
 const navItems = [
   { id: 1, label: 'Daily Mood Triage' },
@@ -29,7 +30,9 @@ export default function Navbar() {
         <div className="h-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex items-center justify-between gap-3">
           <div className="flex items-center min-w-0 gap-3 xl:gap-6">
             <button type="button" onClick={resetFlow} className="flex items-center gap-2.5 shrink-0 cursor-pointer" title="Kembali ke triage">
-              <span className={`w-9 h-9 rounded-full flex items-center justify-center shadow-xs transition-colors ${moodStyle.className}`}><span className="material-symbols-outlined text-[20px] transition-colors">{moodStyle.icon}</span></span>
+              <span className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-xs overflow-hidden p-1">
+                <img src={logo} alt="Careflow" className="w-full h-full object-contain" />
+              </span>
               <span className="hidden sm:inline font-bold text-lg tracking-tight text-on-surface">Careflow</span>
             </button>
             <nav className="hidden xl:flex items-center rounded-full bg-surface-container-low p-1 border border-surface-container" aria-label="Navigasi utama">

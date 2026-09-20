@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFlow } from '../context/FlowContext';
+import logo from '../assets/Logo_careflow.png';
 
 export default function LoginPage() {
   const { authenticate, continueAsGuest, authError, setAuthError } = useFlow();
@@ -44,8 +45,8 @@ export default function LoginPage() {
     <main className="min-h-screen bg-background px-4 py-8 sm:py-12 flex items-center justify-center">
       <section className="w-full max-w-md rounded-[2rem] bg-surface-container-lowest border border-surface-container p-6 sm:p-8 shadow-[0_6px_0_#121214]">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-primary-container flex items-center justify-center text-on-primary-container shadow-xs">
-            <span className="material-symbols-outlined text-[25px]">spa</span>
+          <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-xs p-1">
+            <img src={logo} alt="Careflow" className="w-full h-full object-contain" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-on-surface">Careflow</h1>
