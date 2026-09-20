@@ -142,7 +142,7 @@ func ensureDemoAccount(store *Store, cfg Config) error {
 		return nil
 	}
 	_, _, createErr := store.createUser(Credentials{Name: cfg.DemoName, Email: cfg.DemoEmail, Password: cfg.DemoPassword})
-	if createErr != nil && !strings.Contains(createErr.Error(), "sudah terdaftar") {
+	if createErr != nil && !strings.Contains(createErr.Error(), "already registered") {
 		return createErr
 	}
 	return nil
@@ -155,9 +155,9 @@ func (s *Store) createUserPostgres(name, email, passwordHash string, dateOfBirth
 	_, err := s.db.ExecContext(ctx, `INSERT INTO users (id, name, email, password_hash, date_of_birth, created_at) VALUES ($1, $2, $3, $4, $5, $6)`, user.ID, user.Name, user.Email, user.PasswordHash, user.DateOfBirth, user.CreatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
-			return User{}, "", errors.New("email sudah terdaftar")
+			return User{}, "", errors.New("email is already registered")
 		}
-		return User{}, "", fmt.Errorf("simpan akun: %w", err)
+		return User{}, "", fmt.Errorf("save account: %w", err)
 	}
 	s.mu.Lock()
 	token := s.createTokenLocked(user.ID)
@@ -173,15 +173,15 @@ func (s *Store) loginPostgres(email, password string) (User, string, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT id, name, email, password_hash, date_of_birth::text, created_at FROM users WHERE email = $1`, email).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &dateOfBirth, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return User{}, "", errors.New("email atau kata sandi salah")
+			return User{}, "", errors.New("incorrect email or password")
 		}
-		return User{}, "", fmt.Errorf("ambil akun: %w", err)
+		return User{}, "", fmt.Errorf("fetch account: %w", err)
 	}
 	if dateOfBirth.Valid {
 		user.DateOfBirth = &dateOfBirth.String
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return User{}, "", errors.New("email atau kata sandi salah")
+		return User{}, "", errors.New("incorrect email or password")
 	}
 	s.mu.Lock()
 	token := s.createTokenLocked(user.ID)

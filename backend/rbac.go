@@ -194,7 +194,7 @@ func (s *Store) setUserAccess(userID, role string, banned bool, psychologistID s
 			return s.saveLocked()
 		}
 	}
-	return errors.New("pengguna tidak ditemukan")
+	return errors.New("user not found")
 }
 
 func userProfile(user User, store *Store) ProfileResponse {
@@ -248,13 +248,13 @@ func (s *Store) listPsychologists() ([]ProfileResponse, error) {
 func (s *Store) disconnectPsychologist(userID string) error {
 	user, ok := s.findUserByID(userID)
 	if !ok {
-		return errors.New("pengguna tidak ditemukan")
+		return errors.New("user not found")
 	}
 	if normalizedRole(user.Role) != roleUser {
-		return errors.New("hanya akun user yang dapat memutuskan konsultan")
+		return errors.New("only user accounts can disconnect from a consultant")
 	}
 	if user.PsychologistID == "" {
-		return errors.New("belum ada konsultan yang terhubung")
+		return errors.New("no consultant is currently connected")
 	}
 	return s.setUserAccess(user.ID, roleUser, user.IsBanned, "", false)
 }
@@ -262,17 +262,17 @@ func (s *Store) disconnectPsychologist(userID string) error {
 func (s *Store) selectPsychologist(userID, psychologistID string, share bool) error {
 	user, ok := s.findUserByID(userID)
 	if !ok {
-		return errors.New("pengguna tidak ditemukan")
+		return errors.New("user not found")
 	}
 	if normalizedRole(user.Role) != roleUser {
-		return errors.New("hanya akun user yang dapat memilih psikolog")
+		return errors.New("only user accounts can select a psychologist")
 	}
 	if user.PsychologistID != "" && user.PsychologistID != psychologistID {
-		return errors.New("konsultan sudah terkunci; hubungi admin untuk perubahan")
+		return errors.New("consultant is already locked in; contact an admin to change it")
 	}
 	psychologist, ok := s.findUserByID(psychologistID)
 	if !ok || normalizedRole(psychologist.Role) != rolePsychologist || psychologist.IsBanned {
-		return errors.New("psikolog tidak tersedia")
+		return errors.New("psychologist is not available")
 	}
 	return s.setUserAccess(user.ID, roleUser, user.IsBanned, psychologist.ID, share)
 }
@@ -316,7 +316,7 @@ func (s *Store) listPsychologistClients(psychologistID string) ([]ProfileRespons
 func (s *Store) clientCareData(psychologistID, clientID string) (ClientCareData, error) {
 	client, ok := s.findUserByID(clientID)
 	if !ok || normalizedRole(client.Role) != roleUser || client.PsychologistID != psychologistID {
-		return ClientCareData{}, errors.New("klien tidak di-assign ke psikolog ini")
+		return ClientCareData{}, errors.New("client is not assigned to this psychologist")
 	}
 	data := ClientCareData{User: userProfile(client, s), ShareDataWithPsychologist: client.ShareDataWithPsychologist, Sessions: []SessionRecord{}, DailyMetrics: []DailyMetric{}, DeclutterEntries: []DeclutterEntry{}}
 	if !client.ShareDataWithPsychologist {
@@ -378,18 +378,18 @@ func (s *Store) adminCreateUser(input AdminCreateUserInput) (ProfileResponse, er
 	}
 	created, ok := s.findUserByID(user.ID)
 	if !ok {
-		return ProfileResponse{}, errors.New("akun baru tidak ditemukan")
+		return ProfileResponse{}, errors.New("newly created account not found")
 	}
 	return userProfile(created, s), nil
 }
 
 func (s *Store) updateAdminUser(actorID, targetID string, input UserUpdateInput) (ProfileResponse, error) {
 	if actorID == targetID && ((input.Role != nil && normalizedRole(*input.Role) != roleAdmin) || (input.IsBanned != nil && *input.IsBanned)) {
-		return ProfileResponse{}, errors.New("admin tidak dapat menurunkan role atau memblokir dirinya sendiri")
+		return ProfileResponse{}, errors.New("an admin cannot demote or ban themselves")
 	}
 	target, ok := s.findUserByID(targetID)
 	if !ok {
-		return ProfileResponse{}, errors.New("pengguna tidak ditemukan")
+		return ProfileResponse{}, errors.New("user not found")
 	}
 	role, banned, psychologistID, share := normalizedRole(target.Role), target.IsBanned, target.PsychologistID, target.ShareDataWithPsychologist
 	if input.Role != nil {
@@ -405,13 +405,13 @@ func (s *Store) updateAdminUser(actorID, targetID string, input UserUpdateInput)
 	if input.Name != nil {
 		next := strings.TrimSpace(*input.Name)
 		if len(next) < 2 || len(next) > 80 {
-			return ProfileResponse{}, errors.New("nama harus terdiri dari 2 sampai 80 karakter")
+			return ProfileResponse{}, errors.New("name must be between 2 and 80 characters")
 		}
 		if s.db != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
 			defer cancel()
 			if _, err := s.db.ExecContext(ctx, `UPDATE users SET name=$1 WHERE id=$2`, next, targetID); err != nil {
-				return ProfileResponse{}, fmt.Errorf("ubah nama: %w", err)
+				return ProfileResponse{}, fmt.Errorf("update name: %w", err)
 			}
 		} else {
 			s.mu.Lock()
@@ -443,15 +443,15 @@ func (s *Store) canChat(sender, recipient User) bool {
 func (s *Store) addChatMessage(senderID string, input ChatInput) (ChatMessage, error) {
 	sender, ok := s.findUserByID(senderID)
 	if !ok {
-		return ChatMessage{}, errors.New("pengirim tidak ditemukan")
+		return ChatMessage{}, errors.New("sender not found")
 	}
 	recipient, ok := s.findUserByID(input.RecipientID)
 	if !ok || !s.canChat(sender, recipient) {
-		return ChatMessage{}, errors.New("chat tidak diizinkan untuk relasi ini")
+		return ChatMessage{}, errors.New("chat is not allowed for this relationship")
 	}
 	content := strings.TrimSpace(input.Content)
 	if content == "" || len(content) > 2000 {
-		return ChatMessage{}, errors.New("pesan harus terdiri dari 1 sampai 2000 karakter")
+		return ChatMessage{}, errors.New("message must be between 1 and 2000 characters")
 	}
 	item := ChatMessage{ID: newID(), SenderID: sender.ID, RecipientID: recipient.ID, Content: content, CreatedAt: time.Now().UTC()}
 	if s.db != nil {
@@ -474,11 +474,11 @@ func (s *Store) addChatMessage(senderID string, input ChatInput) (ChatMessage, e
 func (s *Store) chatBetween(senderID, otherID string) ([]ChatMessage, error) {
 	sender, ok := s.findUserByID(senderID)
 	if !ok {
-		return nil, errors.New("pengguna tidak ditemukan")
+		return nil, errors.New("user not found")
 	}
 	other, ok := s.findUserByID(otherID)
 	if !ok || !s.canChat(sender, other) {
-		return nil, errors.New("chat tidak diizinkan untuk relasi ini")
+		return nil, errors.New("chat is not allowed for this relationship")
 	}
 	if s.db != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
@@ -569,12 +569,12 @@ func requireRole(r *http.Request, store *Store, role string) (User, bool) {
 func handleListPsychologists(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, _, ok := authenticatedUser(r, store); !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		items, err := store.listPsychologists()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "gagal memuat psikolog")
+			writeError(w, http.StatusInternalServerError, "failed to load psychologists")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"psychologists": items})
@@ -584,7 +584,7 @@ func handleSelectPsychologist(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input PsychologistSelectionInput
@@ -603,7 +603,7 @@ func handleDisconnectPsychologist(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		if err := store.disconnectPsychologist(user.ID); err != nil {
@@ -619,12 +619,12 @@ func handlePsychologistClients(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, rolePsychologist)
 		if !ok {
-			writeError(w, http.StatusForbidden, "khusus akun psikolog")
+			writeError(w, http.StatusForbidden, "psychologist accounts only")
 			return
 		}
 		items, err := store.listPsychologistClients(user.ID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "gagal memuat klien")
+			writeError(w, http.StatusInternalServerError, "failed to load clients")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"clients": items})
@@ -634,7 +634,7 @@ func handlePsychologistClientData(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, rolePsychologist)
 		if !ok {
-			writeError(w, http.StatusForbidden, "khusus akun psikolog")
+			writeError(w, http.StatusForbidden, "psychologist accounts only")
 			return
 		}
 		id := strings.TrimPrefix(r.URL.Path, "/api/psychologist/clients/")
@@ -649,12 +649,12 @@ func handlePsychologistClientData(store *Store) http.HandlerFunc {
 func handleAdminUsers(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := requireRole(r, store, roleAdmin); !ok {
-			writeError(w, http.StatusForbidden, "khusus admin")
+			writeError(w, http.StatusForbidden, "admin only")
 			return
 		}
 		items, err := store.listAdminUsers()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "gagal memuat pengguna")
+			writeError(w, http.StatusInternalServerError, "failed to load users")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"users": items})
@@ -663,7 +663,7 @@ func handleAdminUsers(store *Store) http.HandlerFunc {
 func handleAdminCreateUser(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := requireRole(r, store, roleAdmin); !ok {
-			writeError(w, http.StatusForbidden, "khusus admin")
+			writeError(w, http.StatusForbidden, "admin only")
 			return
 		}
 		var input AdminCreateUserInput
@@ -683,7 +683,7 @@ func handleAdminUserUpdate(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := requireRole(r, store, roleAdmin)
 		if !ok {
-			writeError(w, http.StatusForbidden, "khusus admin")
+			writeError(w, http.StatusForbidden, "admin only")
 			return
 		}
 		id := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
@@ -703,7 +703,7 @@ func handleCreateChatMessage(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input ChatInput
@@ -722,7 +722,7 @@ func handleListChatMessages(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		items, err := store.chatBetween(user.ID, r.URL.Query().Get("withUserId"))
@@ -740,7 +740,7 @@ func handleListChatMessages(store *Store) http.HandlerFunc {
 		selectedDate := strings.TrimSpace(r.URL.Query().Get("date"))
 		if selectedDate != "" {
 			if _, err := time.Parse("2006-01-02", selectedDate); err != nil {
-				writeError(w, http.StatusBadRequest, "tanggal chat tidak valid")
+				writeError(w, http.StatusBadRequest, "invalid chat date")
 				return
 			}
 			filtered := chatMessagesForDate(items, selectedDate)

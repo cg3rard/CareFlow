@@ -30,62 +30,62 @@ export default function EmergencyModal({ isOpen, onClose }) {
     setResources([
       {
         id: 'hotline-sejiwa',
-        name: 'Layanan Sejiwa (Kemenkes & HIMPSI)',
+        name: 'Sejiwa Service (Ministry of Health & HIMPSI)',
         category: 'National Hotline',
         phone: '119 ext 8',
-        description: 'Layanan konseling darurat resmi pemerintah bebas pulsa untuk krisis emosional.',
-        availability: '24 Jam Bebas Pulsa',
-        location: 'Nasional',
+        description: 'Official government toll-free emergency counseling service for emotional crises.',
+        availability: '24 Hours Toll-Free',
+        location: 'National',
         website: 'https://kemkes.go.id',
       },
       {
         id: 'hotline-kemenkes',
-        name: 'Hotline Kesehatan Jiwa Kemenkes RI',
+        name: 'Ministry of Health Mental Health Hotline',
         category: 'National Hotline',
         phone: '1500-567',
-        description: 'Pusat panggilan krisis untuk pencegahan bunuh diri dan pendampingan mental darurat.',
-        availability: '24 Jam',
-        location: 'Nasional',
+        description: 'Crisis call center for suicide prevention and emergency mental health support.',
+        availability: '24 Hours',
+        location: 'National',
         website: 'https://kemkes.go.id',
       },
       {
         id: 'campus-unjani-yk',
-        name: 'Pusat Konseling UNJANI Yogyakarta',
+        name: 'UNJANI Yogyakarta Counseling Center',
         category: 'Campus Counseling',
         phone: '(0274) 4342000',
-        description: 'Layanan bimbingan konseling dan kesehatan mental mahasiswa Universitas Jenderal Achmad Yani Yogyakarta.',
-        availability: 'Senin - Jumat (08.00 - 16.00 WIB)',
+        description: 'Counseling guidance and mental health services for students of Jenderal Achmad Yani University Yogyakarta.',
+        availability: 'Monday - Friday (08:00 - 16:00 WIB)',
         location: 'Gamping, Sleman, D.I. Yogyakarta',
         website: 'https://unjaya.ac.id',
       },
       {
         id: 'campus-ugm',
-        name: 'GMC & Konseling Mahasiswa UGM',
+        name: 'UGM Student GMC & Counseling',
         category: 'Campus Counseling',
         phone: '(0274) 551412',
-        description: 'Layanan psikolog klinis terpadu untuk sivitas akademika di Yogyakarta.',
-        availability: 'Senin - Jumat (08.00 - 16.00 WIB)',
-        location: 'Sekip Blok L-3, Yogyakarta',
+        description: 'Integrated clinical psychologist services for the academic community in Yogyakarta.',
+        availability: 'Monday - Friday (08:00 - 16:00 WIB)',
+        location: 'Sekip Block L-3, Yogyakarta',
         website: 'https://gmc.ugm.ac.id',
       },
       {
         id: 'campus-ui',
-        name: 'Pusat Konseling Mahasiswa UI',
+        name: 'UI Student Counseling Center',
         category: 'Campus Counseling',
         phone: '0812-9292-1200',
-        description: 'Pendampingan psikologis dan konseling sebaya kampus UI Depok.',
-        availability: 'Senin - Jumat (08.30 - 16.30 WIB)',
-        location: 'Kampus UI Depok',
+        description: 'Psychological support and peer counseling at the UI Depok campus.',
+        availability: 'Monday - Friday (08:30 - 16:30 WIB)',
+        location: 'UI Depok Campus',
         website: 'https://kemahasiswaan.ui.ac.id',
       },
       {
         id: 'campus-itb',
-        name: 'Bimbingan Konseling ITB',
+        name: 'ITB Counseling Guidance',
         category: 'Campus Counseling',
         phone: '(022) 2504244',
-        description: 'Layanan konseling akademik dan emosional bagi mahasiswa ITB.',
-        availability: 'Senin - Jumat (09.00 - 16.00 WIB)',
-        location: 'Gedung CC Barat Lt. 2, Bandung',
+        description: 'Academic and emotional counseling services for ITB students.',
+        availability: 'Monday - Friday (09:00 - 16:00 WIB)',
+        location: 'West CC Building 2nd Floor, Bandung',
         website: 'https://karir.itb.ac.id',
       },
     ]);
@@ -112,7 +112,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
                 Emergency Direct Route
               </h3>
               <p className="text-sm text-gray-500">
-                Akses cepat bantuan krisis & konseling kampus (Bebas Pulsa / Rahasia)
+                Quick access to crisis support & campus counseling (Toll-Free / Confidential)
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {category === 'All' ? 'Semua Kontak' : category === 'National Hotline' ? 'Hotline Nasional (119)' : 'Konseling Kampus'}
+              {category === 'All' ? 'All Contacts' : category === 'National Hotline' ? 'National Hotline (119)' : 'Campus Counseling'}
             </button>
           ))}
         </div>
@@ -157,7 +157,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
                         : 'bg-blue-100 text-blue-700'
                     }`}
                   >
-                    {res.category === 'National Hotline' ? 'Darurat 24 Jam' : 'Kampus'}
+                    {res.category === 'National Hotline' ? '24-Hour Emergency' : 'Campus'}
                   </span>
                   <span className="text-xs text-gray-400 font-medium">{res.location}</span>
                 </div>
@@ -172,7 +172,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
                   className="flex items-center gap-2 px-4 py-2.5 bg-[#007AFF] hover:bg-blue-600 text-white font-medium text-xs rounded-xl shadow-sm transition-transform active:scale-95"
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  <span>Hubungi {res.phone}</span>
+                  <span>Call {res.phone}</span>
                 </a>
                 {res.website && (
                   <a
@@ -180,7 +180,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
                     target="_blank"
                     rel="noreferrer"
                     className="p-2.5 bg-gray-200/80 hover:bg-gray-300 text-gray-700 rounded-xl transition-colors"
-                    title="Buka Website"
+                    title="Open Website"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
@@ -193,7 +193,7 @@ export default function EmergencyModal({ isOpen, onClose }) {
         {/* Footer Note */}
         <div className="mt-4 pt-3 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-400">
-            Privasi terlindungi. Panggilan telepon langsung ditangani oleh profesional kesehatan jiwa atau konselor resmi.
+            Your privacy is protected. Phone calls are handled directly by mental health professionals or certified counselors.
           </p>
         </div>
       </div>

@@ -39,7 +39,7 @@ export default function Navbar() {
     logout,
     openPsychologistFlow,
   } = useFlow();
-  const displayName = authUser?.name || "Tamu";
+  const displayName = authUser?.name || "Guest";
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
@@ -68,7 +68,7 @@ export default function Navbar() {
             type="button"
             onClick={goHome}
             className="flex shrink-0 items-center gap-2.5"
-            title={isStaff ? workspaceLabel : "Kembali ke triage"}
+            title={isStaff ? workspaceLabel : "Back to triage"}
           >
             <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white p-1 shadow-xs">
               <img
@@ -88,7 +88,7 @@ export default function Navbar() {
           ) : (
             <nav
               className="hidden items-center rounded-full border border-surface-container bg-surface-container-low p-1 xl:flex"
-              aria-label="Navigasi utama"
+              aria-label="Main navigation"
             >
               {navItems.map((item) => (
                 <button
@@ -119,7 +119,7 @@ export default function Navbar() {
                 type="button"
                 onClick={openPsychologistFlow}
                 className="inline-flex items-center gap-1.5 rounded-full bg-tertiary px-3 py-2 text-[11px] font-bold text-on-tertiary shadow-[0_3px_0_#121214] transition-transform hover:-translate-y-0.5 active:translate-y-0"
-                title="Butuh bantuan psikolog?"
+                title="Need help from a psychologist?"
               >
                 <span className="material-symbols-outlined text-[17px]">
                   psychology
@@ -142,7 +142,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={logout}
-              title="Keluar dari akun"
+              title="Log out of account"
               className="flex items-center gap-2 rounded-full border border-surface-container bg-surface-container-lowest p-1 pr-2.5 shadow-[0_2px_0_#121214]"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-on-primary">
@@ -161,7 +161,7 @@ export default function Navbar() {
               onClick={startLogin}
               className="rounded-full bg-primary px-3 py-2 text-xs font-bold text-on-primary shadow-[0_2px_0_#121214]"
             >
-              Masuk
+              Sign in
             </button>
           )}
         </div>
@@ -169,7 +169,7 @@ export default function Navbar() {
       {!isStaff && (
         <nav
           className="flex h-11 items-center gap-1 overflow-x-auto border-t border-surface-container/70 px-3 pb-2 xl:hidden"
-          aria-label="Navigasi halaman"
+          aria-label="Page navigation"
         >
           {navItems.map((item) => (
             <button

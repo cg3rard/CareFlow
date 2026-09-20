@@ -45,18 +45,18 @@ export default function FlowStudio() {
 
   const phaseConfigs = {
     box: [
-      { label: 'Tarik Napas...', seconds: 4, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-110', bg: 'bg-primary-container' },
-      { label: 'Tahan Santai...', seconds: 4, mouth: 'M36 62 Q50 62 64 62', scale: 'scale-105', bg: 'bg-tertiary-container' },
-      { label: 'Hembuskan Pelan...', seconds: 4, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-90', bg: 'bg-secondary-container' },
+      { label: 'Breathe In...', seconds: 4, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-110', bg: 'bg-primary-container' },
+      { label: 'Hold Gently...', seconds: 4, mouth: 'M36 62 Q50 62 64 62', scale: 'scale-105', bg: 'bg-tertiary-container' },
+      { label: 'Breathe Out Slowly...', seconds: 4, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-90', bg: 'bg-secondary-container' },
     ],
     deep: [
-      { label: 'Tarik Napas Dalam...', seconds: 4, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-115', bg: 'bg-primary-container' },
-      { label: 'Tahan Tenang...', seconds: 7, mouth: 'M36 62 Q50 62 64 62', scale: 'scale-106', bg: 'bg-tertiary-container' },
-      { label: 'Lepaskan Panjang...', seconds: 8, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-88', bg: 'bg-secondary-container' },
+      { label: 'Breathe In Deeply...', seconds: 4, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-115', bg: 'bg-primary-container' },
+      { label: 'Hold Calmly...', seconds: 7, mouth: 'M36 62 Q50 62 64 62', scale: 'scale-106', bg: 'bg-tertiary-container' },
+      { label: 'Release Slowly...', seconds: 8, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-88', bg: 'bg-secondary-container' },
     ],
     free: [
-      { label: 'Hirup Sesukamu...', seconds: 3, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-108', bg: 'bg-primary-container' },
-      { label: 'Hembus Perlahan...', seconds: 5, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-92', bg: 'bg-secondary-container' },
+      { label: 'Inhale As You Like...', seconds: 3, mouth: 'M36 58 Q50 72 64 58', scale: 'scale-108', bg: 'bg-primary-container' },
+      { label: 'Exhale Slowly...', seconds: 5, mouth: 'M38 66 Q50 54 62 66', scale: 'scale-92', bg: 'bg-secondary-container' },
     ],
   };
 
@@ -122,7 +122,7 @@ export default function FlowStudio() {
   const TOTAL_QUEST_TIME = 300;
   const [questTime, setQuestTime] = useState(TOTAL_QUEST_TIME); // 5:00
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [hasQuestStarted, setHasQuestStarted] = useState(false); // Misi baru bisa dijalankan setelah timer dimulai
+  const [hasQuestStarted, setHasQuestStarted] = useState(false); // A new mission can only run after the timer starts
 
   useEffect(() => {
     let timer = null;
@@ -140,13 +140,13 @@ export default function FlowStudio() {
     return () => clearInterval(timer);
   }, [isTimerRunning, questTime]);
 
-  // Mulai quest: jalankan timer dan buka akses misi
+  // Start the quest: run the timer and unlock mission access
   const startQuest = () => {
     setHasQuestStarted(true);
     setIsTimerRunning(true);
   };
 
-  // Toggle jeda/lanjut. Bila belum pernah dimulai, tombol berfungsi sebagai "Mulai".
+  // Toggle pause/resume. If never started, the button acts as "Start".
   const toggleQuestTimer = () => {
     if (!hasQuestStarted) {
       startQuest();
@@ -155,14 +155,14 @@ export default function FlowStudio() {
     setIsTimerRunning((prev) => !prev);
   };
 
-  // Reset timer 5 menit ke kondisi awal (belum berjalan, misi terkunci lagi)
+  // Reset the 5-minute timer back to its initial state (not running, missions locked again)
   const resetQuestTimer = () => {
     setQuestTime(TOTAL_QUEST_TIME);
     setIsTimerRunning(false);
     setHasQuestStarted(false);
   };
 
-  // Mulai putaran misi yang benar-benar baru: uncheck semua misi & reset timer ke 5:00
+  // Start a completely new round of missions: uncheck all missions & reset timer to 5:00
   const startNewMissionRound = () => {
     resetMicroTasks();
     resetQuestTimer();
@@ -176,14 +176,14 @@ export default function FlowStudio() {
 
   const timerProgressPercentage = Math.round((questTime / TOTAL_QUEST_TIME) * 100);
 
-  // Semua misi tuntas? (activeMissionIndex jadi -1 saat tidak ada task tersisa)
+  // Are all missions complete? (activeMissionIndex becomes -1 when no tasks remain)
   const isAllMissionsCleared = hasQuestStarted && microTasks.length > 0 && activeMissionIndex === -1;
-  // Waktu habis sebelum semua misi tuntas = gagal
+  // Time ran out before all missions were completed = failed
   const isQuestFailed = hasQuestStarted && questTime <= 0 && !isAllMissionsCleared;
-  // Timer & aksi misi terkunci saat: belum mulai, sedang pause, atau quest sudah berakhir (gagal/sukses)
+  // Timer & mission actions are locked when: not yet started, paused, or the quest has ended (failed/succeeded)
   const isQuestLocked = !hasQuestStarted || !isTimerRunning || isQuestFailed || isAllMissionsCleared;
 
-  // Hentikan timer secara permanen begitu semua misi selesai (tidak boleh dijeda/dilanjutkan lagi)
+  // Permanently stop the timer once all missions are complete (can no longer be paused/resumed)
   useEffect(() => {
     if (isAllMissionsCleared && isTimerRunning) {
       setIsTimerRunning(false);
@@ -191,7 +191,7 @@ export default function FlowStudio() {
   }, [isAllMissionsCleared, isTimerRunning]);
 
   // ========================================================
-  // 3. Crush the Worry (Bakar Pikiran Negatif)
+  // 3. Crush the Worry (Burn Negative Thoughts)
   // ========================================================
   const [worryText, setWorryText] = useState('');
   const [isCrushing, setIsCrushing] = useState(false);
@@ -255,26 +255,26 @@ export default function FlowStudio() {
   // Wrapper for task toggle with floating XP banner
   const handleTaskCheck = (task) => {
     if (!hasQuestStarted) {
-      setFloatingXpText('Tekan "Mulai Misi" dulu untuk memulai ⏱️');
+      setFloatingXpText('Press "Start Mission" first to begin ⏱️');
       setTimeout(() => setFloatingXpText(''), 1800);
       return;
     }
     if (!isTimerRunning || isQuestFailed || isAllMissionsCleared) {
-      setFloatingXpText('Lanjutkan timer dulu untuk menyelesaikan misi ⏸️');
+      setFloatingXpText('Resume the timer first to complete the mission ⏸️');
       setTimeout(() => setFloatingXpText(''), 1800);
       return;
     }
     toggleTaskDone(task.id);
     if (!task.completed && microTasks[activeMissionIndex]?.id === task.id) {
-      setFloatingXpText(`+${task.xp || 15} XP Ketenangan!`);
+      setFloatingXpText(`+${task.xp || 15} Calm XP!`);
       setTimeout(() => setFloatingXpText(''), 1500);
     }
   };
 
   const handleCustomMicroAction = () => {
-    const action = window.prompt('Tulis 1 langkah mini yang bisa diselesaikan dalam 2 menit:');
+    const action = window.prompt('Write 1 mini step you can finish in 2 minutes:');
     if (action && addCustomMicroAction(action)) {
-      setFloatingXpText('Misi 2 menit ditambahkan ✨');
+      setFloatingXpText('2-minute mission added ✨');
       setTimeout(() => setFloatingXpText(''), 1800);
     }
   };
@@ -287,7 +287,7 @@ export default function FlowStudio() {
   // (works for guests too) with server-synced completions for logged-in
   // users, de-duplicated by completion id so nothing is double-counted.
   const weeklyFocusActivity = (() => {
-    const DAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const seenIds = new Set();
     const allCompletions = [];
     weeklyTaskCompletions.forEach((entry) => {
@@ -333,11 +333,11 @@ export default function FlowStudio() {
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined mt-0.5" aria-hidden="true">{brainDumpOutcome.shared ? 'lock_open' : 'lock'}</span>
             <div>
-              <p className="text-sm font-bold">Catatan Brain Dump tersimpan</p>
+              <p className="text-sm font-bold">Brain Dump note saved</p>
               <p className="mt-1 text-xs font-medium leading-relaxed">
                 {brainDumpOutcome.shared
-                  ? 'Catatan final ini juga sudah dibagikan ke psikolog yang kamu pilih, sesuai consent data aktif.'
-                  : 'Catatan final ini tersimpan pribadi di akunmu dan belum dibagikan ke psikolog.'}
+                  ? 'This final note has also been shared with the psychologist you selected, per your active data consent.'
+                  : 'This final note is saved privately to your account and has not been shared with a psychologist.'}
               </p>
               <button
                 type="button"
@@ -351,7 +351,7 @@ export default function FlowStudio() {
                 className="mt-3 inline-flex items-center gap-2 rounded-full bg-inverse-surface px-4 py-2 text-xs font-bold text-inverse-on-surface shadow-[0_2px_0_#121214] transition-all hover:opacity-90 active:translate-y-0.5 active:shadow-none"
               >
                 <span className="material-symbols-outlined text-base" aria-hidden="true">air</span>
-                Mulai grounding napas ±1 menit
+                Start a ~1 minute breathing grounding
               </button>
             </div>
           </div>
@@ -376,22 +376,22 @@ export default function FlowStudio() {
           <div>
             <div className="flex items-center gap-2">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-primary animate-ping"></span>
-              <span className="text-xs font-bold uppercase tracking-widest text-primary">Zona Nyaman Aktif</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-primary">Comfort Zone Active</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-on-surface">
-              Fase Fokus Nyantai
+              Relaxed Focus Phase
             </h1>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-start md:justify-end">
-          <div className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title={`Total ${lifetimeXp} XP sepanjang waktu`}>
+          <div className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title={`Total ${lifetimeXp} lifetime XP`}>
             <span className="material-symbols-outlined text-[18px]">military_tech</span>
             <span className="text-xs font-bold">Level {calmLevel} • {xpIntoCurrentLevel}/{XP_PER_LEVEL} XP</span>
           </div>
-          <div className="bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title="XP dari sesi yang sedang berjalan">
+          <div className="bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full flex items-center gap-2 shadow-[0_2px_0_#121214]" title="XP from the current session">
             <span className="material-symbols-outlined text-[18px]">battery_charging_full</span>
-            <span className="text-xs font-bold">{totalXp} XP Sesi Ini</span>
+            <span className="text-xs font-bold">{totalXp} XP This Session</span>
           </div>
         </div>
       </div>
@@ -410,7 +410,7 @@ export default function FlowStudio() {
                 <span className="text-lg font-bold text-on-surface">Bio-Sync &amp; Zen Breathing</span>
               </div>
               <span className="bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-xs font-bold uppercase shadow-xs">
-                Siklus {breathCycle} / {TOTAL_BREATH_CYCLES}
+                Cycle {breathCycle} / {TOTAL_BREATH_CYCLES}
               </span>
             </div>
 
@@ -418,7 +418,7 @@ export default function FlowStudio() {
             <div
               onClick={handleSphereTap}
               className={`relative w-64 h-64 my-4 flex items-center justify-center select-none group ${isBreathingActive ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-              title={isBreathingActive ? 'Ketuk lingkaran untuk mempercepat siklus napas' : 'Tekan Mulai untuk memulai sesi napas'}
+              title={isBreathingActive ? 'Tap the circle to speed up the breath cycle' : 'Press Start to begin a breathing session'}
             >
               {/* Pulsing Aura Rings */}
               <div
@@ -453,7 +453,7 @@ export default function FlowStudio() {
               <span className="text-3xl sm:text-4xl font-bold font-mono text-on-surface">
                 0{breathSeconds}
               </span>
-              <span className="text-sm font-semibold text-on-surface-variant">Detik</span>
+              <span className="text-sm font-semibold text-on-surface-variant">Seconds</span>
             </div>
 
             {/* Start / Stop Controls */}
@@ -466,14 +466,14 @@ export default function FlowStudio() {
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">{isBreathingActive ? 'pause' : 'play_arrow'}</span>
-                <span>{isBreathingActive ? 'Berhenti' : breathCycle > 0 ? 'Lanjutkan' : 'Mulai'}</span>
+                <span>{isBreathingActive ? 'Stop' : breathCycle > 0 ? 'Resume' : 'Start'}</span>
               </button>
               {(breathCycle > 0 || isBreathingActive) && (
                 <button
                   type="button"
                   onClick={resetBreathing}
                   className="px-4 py-2.5 rounded-full bg-surface-container text-on-surface text-xs font-bold shadow-[0_2px_0_#121214] hover:bg-surface-container-high active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Reset siklus ke 0"
+                  title="Reset cycle to 0"
                 >
                   <span className="material-symbols-outlined text-[16px]">refresh</span>
                   <span>Reset</span>
@@ -481,7 +481,7 @@ export default function FlowStudio() {
               )}
             </div>
             {!isBreathingActive && breathCycle >= TOTAL_BREATH_CYCLES && (
-              <p className="text-xs font-bold text-primary text-center">🎉 8 siklus selesai! Tekan Mulai untuk sesi baru.</p>
+              <p className="text-xs font-bold text-primary text-center">🎉 8 cycles complete! Press Start for a new session.</p>
             )}
 
             {/* Breathing Preset Modes */}
@@ -517,7 +517,7 @@ export default function FlowStudio() {
                     : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
                 }`}
               >
-                Ritme Bebas
+                Free Rhythm
               </button>
             </div>
           </div>
@@ -544,7 +544,7 @@ export default function FlowStudio() {
                 }`}
               >
                 <span className="text-2xl mb-1">🌧️</span>
-                <span className="text-xs font-bold text-center">Hujan Cozy</span>
+                <span className="text-xs font-bold text-center">Cozy Rain</span>
                 {activeSound === 'rain' ? (
                   <div className="flex items-center gap-0.5 mt-1 h-3">
                     <span className="w-1 bg-secondary rounded-full animate-eq-1"></span>
@@ -567,7 +567,7 @@ export default function FlowStudio() {
                 }`}
               >
                 <span className="text-2xl mb-1">🌲</span>
-                <span className="text-xs font-bold text-center">Hutan Pinus</span>
+                <span className="text-xs font-bold text-center">Pine Forest</span>
                 {activeSound === 'forest' ? (
                   <div className="flex items-center gap-0.5 mt-1 h-3">
                     <span className="w-1 bg-primary rounded-full animate-eq-1"></span>
@@ -590,7 +590,7 @@ export default function FlowStudio() {
                 }`}
               >
                 <span className="text-2xl mb-1">☕</span>
-                <span className="text-xs font-bold text-center">Kafe Santai</span>
+                <span className="text-xs font-bold text-center">Cozy Cafe</span>
                 {activeSound === 'cafe' ? (
                   <div className="flex items-center gap-0.5 mt-1 h-3">
                     <span className="w-1 bg-tertiary rounded-full animate-eq-1"></span>
@@ -627,7 +627,7 @@ export default function FlowStudio() {
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-error text-[24px]">local_fire_department</span>
                 <h2 className="text-base sm:text-lg font-bold text-on-surface">
-                  Bakar &amp; Hancurkan Pikiran Negatif
+                  Burn &amp; Crush Negative Thoughts
                 </h2>
               </div>
               <span className="bg-error-container text-on-error-container px-2.5 py-1 rounded-full text-xs font-bold">
@@ -636,7 +636,7 @@ export default function FlowStudio() {
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Ketik apa pun yang bikin dada sesak, cemas, atau bikin kamu mandek. Hancurkan sampai jadi debu digital!
+              Type anything that's weighing on your chest, making you anxious, or stuck in your head. Crush it into digital dust!
             </p>
 
             <div className="relative">
@@ -645,7 +645,7 @@ export default function FlowStudio() {
                 value={worryText}
                 disabled={isCrushing}
                 onChange={(e) => setWorryText(e.target.value)}
-                placeholder="Contoh: Takut kerjaan ini dinilai jelek sama tim, ngerasa gak sanggup selesaiin deadline..."
+                placeholder="Example: Afraid this work will be judged poorly by the team, feeling like I can't finish the deadline..."
                 className={`w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/60 rounded-xl p-4 text-xs sm:text-sm focus:outline-none focus:bg-surface-container resize-none transition-all ${
                   isShockwaveActive ? 'animate-worry-explode' : isCrushing ? 'animate-worry-windup' : ''
                 }`}
@@ -707,7 +707,7 @@ export default function FlowStudio() {
                 disabled={!worryText.trim() || isCrushing}
                 className="px-6 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <span>{isShockwaveActive ? 'BOOM! 💥' : isCrushing ? 'Bersiap...' : 'Remas & Musnahkan!'}</span>
+                <span>{isShockwaveActive ? 'BOOM! 💥' : isCrushing ? 'Bracing...' : 'Crush & Destroy!'}</span>
                 <span className="text-base">{isCrushing ? '🔥' : '💥'}</span>
               </button>
             </div>
@@ -729,7 +729,7 @@ export default function FlowStudio() {
                   </span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-on-surface">
-                  Misi 5 Menit {authUser?.name || 'Teman'}!
+                  5-Minute Mission {authUser?.name || 'Friend'}!
                 </h2>
               </div>
             </div>
@@ -764,7 +764,7 @@ export default function FlowStudio() {
                   </div>
                   <div>
                     <div className="text-[11px] text-on-surface-variant uppercase tracking-wider font-bold">
-                      {hasQuestStarted ? 'Timer Putaran Sekarang' : 'Tekan Mulai untuk Aktifkan Misi'}
+                      {hasQuestStarted ? 'Current Round Timer' : 'Press Start to Activate the Mission'}
                     </div>
                     <div className="text-2xl sm:text-3xl font-bold text-on-surface font-mono">
                       {formatTimer(questTime)}
@@ -786,14 +786,14 @@ export default function FlowStudio() {
                     </span>
                     <span>
                       {isAllMissionsCleared
-                        ? 'Misi Selesai'
+                        ? 'Mission Complete'
                         : isQuestFailed
-                          ? 'Waktu Habis'
+                          ? 'Time\'s Up'
                           : !hasQuestStarted
-                            ? 'Mulai Misi'
+                            ? 'Start Mission'
                             : isTimerRunning
-                              ? 'Jeda Sesaat'
-                              : 'Lanjutkan'}
+                              ? 'Pause'
+                              : 'Resume'}
                     </span>
                   </button>
                   <button
@@ -801,23 +801,23 @@ export default function FlowStudio() {
                     onClick={resetQuestTimer}
                     disabled={isQuestFailed || isAllMissionsCleared}
                     className="p-2.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-variant shadow-[0_2px_0_#121214] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Reset 5 Menit"
+                    title="Reset 5 Minutes"
                   >
                     <span className="material-symbols-outlined text-[18px]">refresh</span>
                   </button>
                 </div>
               </div>
 
-              {/* Popup: Waktu Habis / Gagal Menyelesaikan Misi (in-flow, mendorong konten di bawahnya) */}
+              {/* Popup: Time's Up / Failed to Complete Mission (in-flow, pushes content below it) */}
               {isQuestFailed && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-error-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
                   <span className="text-4xl animate-bounce">⏳</span>
                   <div>
                     <h3 className="text-base sm:text-lg font-extrabold text-on-error-container">
-                      Waktu Habis! Misi Belum Tuntas
+                      Time's Up! Mission Not Yet Complete
                     </h3>
                     <p className="text-xs text-on-error-container/80 mt-1 max-w-xs mx-auto">
-                      Nggak apa-apa, ini bukan kegagalan permanen. Yuk atur ulang dan coba lagi dengan langkah yang lebih kecil!
+                      It's okay, this isn't a permanent failure. Let's reset and try again with a smaller step!
                     </p>
                   </div>
                   <button
@@ -826,21 +826,21 @@ export default function FlowStudio() {
                     className="mt-1 flex items-center gap-2 px-5 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[18px] animate-spin" style={{ animationDuration: '2s' }}>refresh</span>
-                    <span>Ulangi Misi 5 Menit</span>
+                    <span>Retry the 5-Minute Mission</span>
                   </button>
                 </div>
               )}
 
-              {/* Popup: Semua Misi Berhasil Diselesaikan (in-flow, mendorong konten di bawahnya) */}
+              {/* Popup: All Missions Successfully Completed (in-flow, pushes content below it) */}
               {isAllMissionsCleared && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-primary-container shadow-[0_4px_0_#121214] px-5 py-6 text-center animate-fadeIn">
                   <span className="text-4xl animate-bounce">🎉</span>
                   <div>
                     <h3 className="text-base sm:text-lg font-extrabold text-on-primary-container">
-                      Misi 5 Menit Berhasil Dituntaskan!
+                      5-Minute Mission Successfully Completed!
                     </h3>
                     <p className="text-xs text-on-primary-container/80 mt-1 max-w-xs mx-auto">
-                      Kerja bagus! Semua langkah kecil sudah selesai. Momentum ini layak dirayakan ✨
+                      Great work! All the small steps are done. This momentum deserves a celebration ✨
                     </p>
                   </div>
                   <button
@@ -849,7 +849,7 @@ export default function FlowStudio() {
                     className="mt-1 flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:scale-105 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[18px]">refresh</span>
-                    <span>Mulai Misi Baru</span>
+                    <span>Start a New Mission</span>
                   </button>
                 </div>
               )}
@@ -881,7 +881,7 @@ export default function FlowStudio() {
                     </button>
                     <div>
                       <span className={`text-xs text-on-surface-variant ${microTasks[0].completed ? 'line-through' : ''}`}>
-                        Misi 1
+                        Mission 1
                       </span>
                       <h3 className={`text-sm sm:text-base font-bold text-on-surface ${microTasks[0].completed ? 'line-through' : ''}`}>
                         {microTasks[0].action}
@@ -889,7 +889,7 @@ export default function FlowStudio() {
                     </div>
                   </div>
                   <div className="bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shrink-0 shadow-xs">
-                    <span>+{microTasks[0].xp || 10} XP {microTasks[0].completed ? 'Selesai 🎉' : '< 2 mnt'}</span>
+                    <span>+{microTasks[0].xp || 10} XP {microTasks[0].completed ? 'Done 🎉' : '< 2 min'}</span>
                   </div>
                 </div>
               )}
@@ -903,11 +903,11 @@ export default function FlowStudio() {
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full bg-tertiary animate-ping"></span>
                       <span className="text-xs font-bold uppercase tracking-wider text-tertiary">
-                        {microTasks[1].completed ? 'Quest Selesai' : activeMissionIndex === 1 ? 'Quest Sedang Berjalan' : 'Terkunci • Selesaikan Misi 1'}
+                        {microTasks[1].completed ? 'Quest Complete' : activeMissionIndex === 1 ? 'Quest In Progress' : 'Locked • Complete Mission 1'}
                       </span>
                     </div>
                     <span className="bg-tertiary text-on-tertiary px-3 py-0.5 rounded-full text-xs font-bold shadow-xs flex items-center gap-1">
-                      <span>Misi #2</span>
+                      <span>Mission #2</span>
                       <span className="opacity-80">•</span>
                       <span>+{microTasks[1].xp || 20} XP</span>
                     </span>
@@ -919,7 +919,7 @@ export default function FlowStudio() {
                     </h3>
                     <div className="inline-flex items-center gap-1.5 bg-surface-container-lowest px-3 py-1 rounded-full text-on-surface-variant text-xs font-medium shadow-xs">
                       <span>✨</span>
-                      <span>{microTasks[1].guidance || 'Biarin jelek dulu, yang penting jalan!'}</span>
+                      <span>{microTasks[1].guidance || 'Let it be messy for now, what matters is getting going!'}</span>
                     </div>
                   </div>
 
@@ -931,7 +931,7 @@ export default function FlowStudio() {
                       disabled={isQuestLocked || activeMissionIndex !== 1}
                       className="px-4 py-2.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span>{microTasks[1].completed ? 'Lanjut ke Misi 3 →' : activeMissionIndex === 1 ? 'Tandai Selesai' : 'Selesaikan Misi 1 dulu'}</span>
+                      <span>{microTasks[1].completed ? 'Continue to Mission 3 →' : activeMissionIndex === 1 ? 'Mark as Done' : 'Complete Mission 1 first'}</span>
                       <span className="material-symbols-outlined text-[18px]">done_all</span>
                     </button>
                     <button
@@ -940,7 +940,7 @@ export default function FlowStudio() {
                       disabled={isQuestLocked || activeMissionIndex !== 1}
                       className="px-4 py-2.5 rounded-full bg-surface-container-lowest text-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span>Kecilin Lagi</span>
+                      <span>Break It Down More</span>
                       <span className="text-sm">🤏</span>
                     </button>
                     <button
@@ -949,7 +949,7 @@ export default function FlowStudio() {
                       className="px-3.5 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant text-xs font-bold shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[16px]">timer</span>
-                      <span>5 Menit Baru</span>
+                      <span>New 5 Minutes</span>
                     </button>
                   </div>
                 </div>
@@ -977,7 +977,7 @@ export default function FlowStudio() {
                     </button>
                     <div>
                       <span className={`text-xs text-on-surface-variant ${microTasks[2].completed ? 'line-through' : ''}`}>
-                        {microTasks[2].completed ? 'Misi 3 • Selesai' : activeMissionIndex === 2 ? 'Misi 3 • Quest Aktif' : 'Misi 3 • Terkunci'}
+                        {microTasks[2].completed ? 'Mission 3 • Done' : activeMissionIndex === 2 ? 'Mission 3 • Quest Active' : 'Mission 3 • Locked'}
                         {' • '}+{microTasks[2].xp || 15} XP
                       </span>
                       <h3 className={`text-xs sm:text-sm font-bold text-on-surface ${microTasks[2].completed ? 'line-through' : ''}`}>
@@ -991,7 +991,7 @@ export default function FlowStudio() {
                     disabled={isQuestLocked || activeMissionIndex !== 2}
                     className="shrink-0 rounded-full bg-primary px-3.5 py-2 text-xs font-bold text-on-primary shadow-xs transition-all disabled:cursor-not-allowed disabled:bg-surface-container-highest disabled:text-on-surface-variant"
                   >
-                    {microTasks[2].completed ? 'Selesai ✨' : activeMissionIndex === 2 ? 'Tandai Selesai' : 'Setelah Misi 2'}
+                    {microTasks[2].completed ? 'Done ✨' : activeMissionIndex === 2 ? 'Mark as Done' : 'After Mission 2'}
                   </button>
                 </div>
               )}
@@ -1001,7 +1001,7 @@ export default function FlowStudio() {
             <div className="bg-secondary-container/40 rounded-2xl p-4 flex items-center gap-3 mt-1 shadow-xs">
               <span className="text-2xl shrink-0">🚀</span>
               <p className="text-xs sm:text-sm text-on-surface font-medium leading-relaxed">
-                <strong>Momentum &gt; Perfeksionisme.</strong> Satu langkah kecil sekarang lebih berarti daripada rencana besar yang tertunda.
+                <strong>Momentum &gt; Perfectionism.</strong> One small step now matters more than a grand plan you keep postponing.
               </p>
             </div>
           </div>
@@ -1011,10 +1011,10 @@ export default function FlowStudio() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[22px]">ssid_chart</span>
-                <span className="text-sm font-bold text-on-surface">Aktivitas Fokus Minggu Ini</span>
+                <span className="text-sm font-bold text-on-surface">Focus Activity This Week</span>
               </div>
               <span className="text-xs font-bold text-primary">
-                {completedCount >= 3 ? 'Semua Misi Tuntas 🔥' : hasWeeklyActivity ? 'Fokus Berkelanjutan' : 'Belum Ada Aktivitas'}
+                {completedCount >= 3 ? 'All Missions Complete 🔥' : hasWeeklyActivity ? 'Sustained Focus' : 'No Activity Yet'}
               </span>
             </div>
 
@@ -1026,18 +1026,18 @@ export default function FlowStudio() {
                     <div
                       className={`w-full rounded-t-lg transition-all ${day.isToday ? 'bg-primary shadow-sm' : 'bg-primary-container group-hover:bg-primary'}`}
                       style={{ height: `${day.xp > 0 ? Math.max(12, (day.xp / maxWeeklyXp) * 80) : 4}px` }}
-                      title={`${day.xp} XP pada ${day.label}`}
+                      title={`${day.xp} XP on ${day.label}`}
                     ></div>
                     <span className={`text-[10px] font-mono ${day.isToday ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
-                      {day.isToday ? 'Hari ini' : day.label}
+                      {day.isToday ? 'Today' : day.label}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-center">
-                <span className="text-xs text-on-surface-variant font-medium">Belum ada misi yang diselesaikan minggu ini.</span>
-                <span className="text-[11px] text-on-surface-variant/70">Grafik ini akan terisi begitu kamu menandai misi selesai.</span>
+                <span className="text-xs text-on-surface-variant font-medium">No missions completed this week yet.</span>
+                <span className="text-[11px] text-on-surface-variant/70">This chart fills in as soon as you mark a mission done.</span>
               </div>
             )}
           </div>

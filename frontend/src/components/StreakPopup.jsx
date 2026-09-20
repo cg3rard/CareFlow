@@ -122,7 +122,7 @@ export default function StreakPopup({ streakDays, onDone }) {
         className="relative z-10 flex w-full max-w-3xl flex-col items-center justify-center animate-streak-celebration-enter"
         onClick={(event) => event.stopPropagation()}
       >
-        <p className="mb-4 text-xs font-bold tracking-[0.32em] text-orange-100/80">STREAK MENYALA</p>
+        <p className="mb-4 text-xs font-bold tracking-[0.32em] text-orange-100/80">STREAK ABLAZE</p>
 
         <div className="relative flex items-center justify-center">
           {/* Glow pulsing softly behind the flame. */}
@@ -148,11 +148,11 @@ export default function StreakPopup({ streakDays, onDone }) {
           <p className="bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-6xl" style={{ backgroundImage: 'linear-gradient(90deg, #fff7bd, #ffb21d, #ff5c33)' }}>
             {streakDays}
           </p>
-          <p className="mt-1 text-2xl font-black tracking-tight text-white sm:text-4xl">Hari Beruntun!</p>
+          <p className="mt-1 text-2xl font-black tracking-tight text-white sm:text-4xl">Day Streak!</p>
           <p className="mt-3 text-base font-semibold text-orange-100 sm:text-lg">
-            Api semangatmu makin membara — <span className="text-yellow-200">pertahankan terus!</span>
+            Your spark is burning brighter — <span className="text-yellow-200">keep it going!</span>
           </p>
-          <p className="mt-5 text-xs font-medium text-orange-100/60">Ketuk di mana saja untuk menutup</p>
+          <p className="mt-5 text-xs font-medium text-orange-100/60">Tap anywhere to close</p>
         </div>
       </section>
     </div>

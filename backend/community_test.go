@@ -18,11 +18,11 @@ func TestCommunityAnonymousPrivacyAndPsychologistActivity(t *testing.T) {
 	if !ok {
 		t.Fatal("psychologist demo account was not seeded")
 	}
-	client, _, err := store.createUser(Credentials{Name: "Client Community", Email: "client-community@example.com", Password: "password-aman"})
+	client, _, err := store.createUser(Credentials{Name: "Client Community", Email: "client-community@example.com", Password: "safe-password"})
 	if err != nil {
 		t.Fatalf("create client: %v", err)
 	}
-	other, _, err := store.createUser(Credentials{Name: "Other Community", Email: "other-community@example.com", Password: "password-aman"})
+	other, _, err := store.createUser(Credentials{Name: "Other Community", Email: "other-community@example.com", Password: "safe-password"})
 	if err != nil {
 		t.Fatalf("create other user: %v", err)
 	}
@@ -30,18 +30,18 @@ func TestCommunityAnonymousPrivacyAndPsychologistActivity(t *testing.T) {
 		t.Fatalf("select psychologist: %v", err)
 	}
 
-	named, err := store.createCommunityPost(client.ID, CommunityPostInput{Body: "Saya mencoba mengambil jeda sebelum tidur.", TopicTag: "Refleksi"})
+	named, err := store.createCommunityPost(client.ID, CommunityPostInput{Body: "I'm trying to take a pause before sleep.", TopicTag: "Reflection"})
 	if err != nil {
 		t.Fatalf("create named post: %v", err)
 	}
 	if len(named.ID) != 36 || named.ID[8] != '-' || named.ID[13] != '-' || named.ID[14] != '4' || named.ID[18] != '-' || named.ID[23] != '-' {
 		t.Fatalf("community post ID = %q, want UUID v4", named.ID)
 	}
-	anonymous, err := store.createCommunityPost(other.ID, CommunityPostInput{Body: "Saya butuh ruang untuk didengar tanpa nama.", TopicTag: "Butuh teman", IsAnonymous: true})
+	anonymous, err := store.createCommunityPost(other.ID, CommunityPostInput{Body: "I need a space to be heard without a name.", TopicTag: "Need a friend", IsAnonymous: true})
 	if err != nil {
 		t.Fatalf("create anonymous post: %v", err)
 	}
-	if _, err := store.createCommunityComment(client.ID, anonymous.ID, CommunityCommentInput{Body: "Aku mendengarmu. Pelan-pelan saja, ya."}); err != nil {
+	if _, err := store.createCommunityComment(client.ID, anonymous.ID, CommunityCommentInput{Body: "I hear you. Take it slow, okay."}); err != nil {
 		t.Fatalf("create comment on anonymous post: %v", err)
 	}
 	if !store.psychologistCanViewCommunityPost(psychologist.ID, named.ID) || !store.psychologistCanViewCommunityPost(psychologist.ID, anonymous.ID) {
@@ -59,7 +59,7 @@ func TestCommunityAnonymousPrivacyAndPsychologistActivity(t *testing.T) {
 			break
 		}
 	}
-	if anonymousView.AuthorName != "Anonim" {
+	if anonymousView.AuthorName != "Anonymous" {
 		t.Fatalf("anonymous author leaked as %q", anonymousView.AuthorName)
 	}
 	detail, err := store.communityPostByID(client.ID, named.ID)
@@ -77,7 +77,7 @@ func TestCommunityAnonymousPrivacyAndPsychologistActivity(t *testing.T) {
 	if len(activity.Comments) != 1 || activity.Comments[0].PostID != anonymous.ID {
 		t.Fatalf("comment activity = %#v, want comment on anonymous post", activity.Comments)
 	}
-	if !activity.Comments[0].PostIsAnonymous || activity.Comments[0].PostAuthorName != "Anonim" {
+	if !activity.Comments[0].PostIsAnonymous || activity.Comments[0].PostAuthorName != "Anonymous" {
 		t.Fatalf("anonymous parent leaked through activity: %#v", activity.Comments[0])
 	}
 }

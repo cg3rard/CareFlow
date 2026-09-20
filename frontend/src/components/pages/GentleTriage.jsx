@@ -117,7 +117,7 @@ export default function GentleTriage() {
     const parsed = Number.parseFloat(sleepHoursDraft);
     if (Number.isNaN(parsed) || parsed < 0 || parsed > 12) return;
 
-    setQuizConfirmationMessage('Durasi tidur tersimpan');
+    setQuizConfirmationMessage('Sleep duration saved');
     setIsQuizAnswerConfirming(true);
     setMetricLogError('');
 
@@ -128,7 +128,7 @@ export default function GentleTriage() {
       try {
         await logSleepHours(parsed);
       } catch (error) {
-        setMetricLogError(error.message || 'Durasi tidur gagal tersimpan ke server.');
+        setMetricLogError(error.message || 'Failed to save sleep duration to the server.');
       }
     }, 800);
   };
@@ -143,7 +143,7 @@ export default function GentleTriage() {
         const finalAnswers = [...currentAnswers, ans];
         const finalScore = estimateStressFromAnswers(finalAnswers, quizQuestions);
         logQuizStress(finalScore, stressLevelLabel(finalScore)?.label).catch((error) => {
-          setMetricLogError(error.message || 'Indikator stres gagal tersimpan ke server.');
+          setMetricLogError(error.message || 'Failed to save stress indicator to the server.');
         });
         return finalAnswers;
       });
@@ -151,7 +151,7 @@ export default function GentleTriage() {
       return;
     }
 
-    setQuizConfirmationMessage('Jawaban tercatat');
+    setQuizConfirmationMessage('Answer recorded');
     setIsQuizAnswerConfirming(true);
 
     window.setTimeout(() => {
@@ -229,7 +229,7 @@ export default function GentleTriage() {
     setTriageData((prev) => ({
       ...prev,
       tag: tag,
-      content: prev.content ? `${prev.content} [${tag}]` : `Fokus pada ${tag}: `,
+      content: prev.content ? `${prev.content} [${tag}]` : `Focus on ${tag}: `,
     }));
   };
 
@@ -245,9 +245,9 @@ export default function GentleTriage() {
       bg: 'bg-primary-container',
       text: 'text-on-primary-container',
       quotes: [
-        'Tarik napas perlahan. Hari ini kita selesaikan satu per satu 🌿',
-        'Nggak apa-apa jalan pelan-pelan, yang penting tetap melangkah 🍃',
-        'Beri dirimu ruang untuk lembut ke diri sendiri hari ini 🌸',
+        'Take a slow breath. Today we handle it one thing at a time 🌿',
+        'It\'s okay to go slow, what matters is keeping moving 🍃',
+        'Give yourself room to be gentle with yourself today 🌸',
       ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-primary-container" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
@@ -263,9 +263,9 @@ export default function GentleTriage() {
       bg: 'bg-tertiary-fixed',
       text: 'text-on-tertiary-fixed',
       quotes: [
-        'Pikiran kusut berputar? Tenang, mari kita rapikan benang kusutnya 🌀',
-        'Terlalu banyak yang muter di kepala? Yuk kita pilah satu-satu 🧵',
-        'Wajar kok kalau pikiran terasa berantakan, kita uraikan bareng-bareng ✨',
+        'Thoughts spinning in a tangle? Relax, let\'s untangle that thread 🌀',
+        'Too much going on in your head? Let\'s sort it out one at a time 🧵',
+        'It\'s normal for your mind to feel messy, let\'s untangle it together ✨',
       ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-tertiary-fixed" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
@@ -282,9 +282,9 @@ export default function GentleTriage() {
       bg: 'bg-secondary-container',
       text: 'text-on-secondary-container',
       quotes: [
-        'Merasa kesal atau frustrasi? Wajar banget, salurkan ke tindakan mikro 🔥',
-        'Emosi yang menggebu itu valid. Yuk kita ubah jadi energi yang berguna 💥',
-        'Boleh kok marah, yang penting kita cari cara sehat buat melepaskannya 🌋',
+        'Feeling annoyed or frustrated? Totally normal, channel it into a micro action 🔥',
+        'That surging emotion is valid. Let\'s turn it into useful energy 💥',
+        'It\'s okay to be angry, what matters is finding a healthy way to release it 🌋',
       ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-secondary-container" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
@@ -302,9 +302,9 @@ export default function GentleTriage() {
       bg: 'bg-secondary-fixed',
       text: 'text-secondary',
       quotes: [
-        'Energi dan dopamin lagi tinggi! Ayo manfaatkan untuk 1 langkah awal ⚡',
-        'Kamu lagi bertenaga nih, pas banget buat gaskeun satu misi kecil 🚀',
-        'Semangat lagi berapi-api, yuk salurkan ke hal produktif sekarang 🔋',
+        'Energy and dopamine are high right now! Use it for 1 first step ⚡',
+        'You\'re full of energy, perfect time to charge into one small mission 🚀',
+        'Your spirit is on fire, let\'s channel it into something productive now 🔋',
       ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-secondary" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
@@ -321,9 +321,9 @@ export default function GentleTriage() {
       bg: 'bg-tertiary-fixed-dim',
       text: 'text-on-tertiary-fixed-variant',
       quotes: [
-        'Lelah fisik butuh rehat tanpa rasa bersalah. Istirahat sejenak ya 🌙',
-        'Kalau ngantuk berat, nggak apa-apa pause dulu sebentar 😴',
-        'Tubuh capek itu sinyal buat istirahat, dengarkan dirimu ya 🛋️',
+        'Physical tiredness needs rest without guilt. Take a moment to rest 🌙',
+        'If you\'re really drowsy, it\'s okay to pause for a bit 😴',
+        'A tired body is a signal to rest, listen to yourself 🛋️',
       ],
       renderSvg: () => (
         <svg className="w-14 h-14 text-on-tertiary-fixed-variant" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" viewBox="0 0 100 100">
@@ -336,23 +336,23 @@ export default function GentleTriage() {
   ];
 
   const quickTags = [
-    'Tugas Menumpuk 📚',
-    'Takut Gagal ⚡',
-    'Skripsi Buntu 😵‍💫',
-    'Butuh Rehat ☕',
-    'Overthinking Malam 🌙',
+    'Piling Up Tasks 📚',
+    'Fear of Failure ⚡',
+    'Stuck on Thesis 😵‍💫',
+    'Need a Break ☕',
+    'Late Night Overthinking 🌙',
   ];
 
   const activeMascotObj = mascots.find((m) => m.id === selectedMascot) || mascots[0];
   const isGuest = !authUser;
   const brainDumpShareActive = Boolean(authUser?.role === 'user' && authUser?.psychologistId && authUser?.shareDataWithPsychologist);
   const brainDumpPrivacyCopy = brainDumpShareActive
-    ? `Saat diurai, catatan final tersimpan dan dibagikan ke ${authUser.psychologistName || 'konsultanmu'}.`
+    ? `Once unraveled, the final note is saved and shared with ${authUser.psychologistName || 'your consultant'}.`
     : authUser?.psychologistId
-      ? 'Saat diurai, catatan final tersimpan pribadi. Data sharing belum aktif.'
+      ? 'Once unraveled, the final note is saved privately. Data sharing is not yet active.'
       : authUser
-        ? 'Saat diurai, catatan final tersimpan pribadi. Hubungkan konsultan untuk membagikannya.'
-        : 'Draft tersimpan di perangkat ini. Masuk untuk menyimpan catatan final ke akunmu.';
+        ? 'Once unraveled, the final note is saved privately. Connect with a consultant to share it.'
+        : 'Draft is saved on this device. Log in to save the final note to your account.';
 
   const handleBrainDumpSubmit = async () => {
     const savedEntry = await processTriage();
@@ -373,15 +373,15 @@ export default function GentleTriage() {
           <div className="flex items-center gap-4">
             <div className="relative w-14 h-14 rounded-full overflow-hidden bg-secondary-container flex items-center justify-center shrink-0 shadow-xs">
               <div className="w-full h-full bg-gradient-to-tr from-amber-200 to-orange-300 flex items-center justify-center text-xl font-bold text-amber-900">
-                {(authUser?.name || 'Teman').trim().charAt(0).toUpperCase()}
+                {(authUser?.name || 'Friend').trim().charAt(0).toUpperCase()}
               </div>            </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Welcome back</span>
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary"></span>
-                <span className="text-xs text-on-surface-variant font-medium">Hari ini • Sesi Mandiri</span>
+                <span className="text-xs text-on-surface-variant font-medium">Today • Solo Session</span>
               </div>
-              <span className="text-xl font-bold text-on-surface tracking-tight">{authUser?.name || 'Teman'}</span>
+              <span className="text-xl font-bold text-on-surface tracking-tight">{authUser?.name || 'Friend'}</span>
             </div>
           </div>
 
@@ -395,7 +395,7 @@ export default function GentleTriage() {
               className={`w-10 h-10 rounded-full bg-surface-container flex items-center justify-center hover:bg-surface-container-high active:scale-90 transition-all text-on-surface cursor-pointer shadow-[0_2px_0_#121214] ${
                 bellActive ? 'ring-2 ring-emerald-500 scale-110' : ''
               } ${bellRung ? 'animate-zen-bell-pulse' : ''}`}
-              title="Zen Chime: Bunyikan Lonceng Ketenangan"
+              title="Zen Chime: Ring the Calming Bell"
               aria-pressed={bellActive}
             >
               <span
@@ -496,7 +496,7 @@ export default function GentleTriage() {
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight mt-1">
-                Hello {authUser?.name || 'Teman'}!<br />How are you feeling today?
+                Hello {authUser?.name || 'Friend'}!<br />How are you feeling today?
               </h2>
               <p className="text-sm text-on-surface-variant mt-2 font-medium">
                 Tap a frequency to tune your day's personal Careflow rhythm.
@@ -617,14 +617,14 @@ export default function GentleTriage() {
                 type="button"
                 onClick={handleSaveVibe}
                 disabled={hasSavedToday}
-                title={hasSavedToday ? 'Daily Pulse hari ini sudah tersimpan. Coba lagi besok.' : undefined}
+                title={hasSavedToday ? 'Today\'s Daily Pulse has already been saved. Try again tomorrow.' : undefined}
                 className={`px-5 py-2.5 rounded-full text-xs font-bold shadow-[0_2px_0_#121214] transition-all ${
                   hasSavedToday
                     ? 'bg-surface-container text-on-surface-variant cursor-not-allowed opacity-70'
                     : 'bg-inverse-surface text-inverse-on-surface hover:opacity-90 active:translate-y-0.5 active:shadow-none cursor-pointer'
                 }`}
               >
-                {hasSavedToday ? 'Sudah Diisi Hari Ini ✅' : vaultSavedNotice ? 'Tersimpan! ✨' : 'Simpan Sesi'}
+                {hasSavedToday ? 'Already Filled Today ✅' : vaultSavedNotice ? 'Saved! ✨' : 'Save Session'}
               </button>
             </div>
           </div>
@@ -658,7 +658,7 @@ export default function GentleTriage() {
                     <span className="text-xs uppercase tracking-wider font-bold">Sleep Duration</span>
                   </div>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-surface-container-lowest/80 text-on-surface font-bold shadow-xs">
-                    {weeklySleepSamples.length > 0 ? `Rata-rata ${weeklySleepSamples.length} hari` : 'Belum diisi'}
+                    {weeklySleepSamples.length > 0 ? `${weeklySleepSamples.length}-day average` : 'Not filled yet'}
                   </span>
                 </div>
 
@@ -679,16 +679,16 @@ export default function GentleTriage() {
                     <span className="text-3xl sm:text-4xl font-bold tracking-tight">
                       {displaySleepHours != null ? displaySleepHours : '—'}
                     </span>
-                    {displaySleepHours != null && <span className="text-sm font-bold ml-1">jam/malam</span>}
+                    {displaySleepHours != null && <span className="text-sm font-bold ml-1">hrs/night</span>}
                   </div>
                   <span className="text-xs font-bold text-on-secondary-container">
                     {displaySleepHours != null
                       ? displaySleepHours < 6
-                        ? 'Kurang dari ideal'
+                        ? 'Below ideal'
                         : displaySleepHours <= 9
-                          ? 'Dalam rentang sehat'
-                          : 'Lebih dari biasanya'
-                      : 'Isi di Yes/No Quiz →'}
+                          ? 'Within healthy range'
+                          : 'More than usual'
+                      : 'Fill in the Yes/No Quiz →'}
                   </span>
                 </div>
               </div>
@@ -721,7 +721,7 @@ export default function GentleTriage() {
                     {stressScore != null && <span className="text-sm font-bold ml-1">/100</span>}
                   </div>
                   <span className="text-xs font-bold text-on-tertiary-container">
-                    {stressScore != null ? stressInfo.label : 'Isi di Yes/No Quiz →'}
+                    {stressScore != null ? stressInfo.label : 'Fill in the Yes/No Quiz →'}
                   </span>
                 </div>
               </div>
@@ -736,13 +736,13 @@ export default function GentleTriage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs px-3 py-0.5 rounded-full bg-surface-container-lowest/60 text-on-primary-container font-bold shadow-xs">
-                    {quizLoggedToday ? 'Selesai hari ini' : sleepLogged ? `Question ${quizIndex + 1} / ${quizQuestions.length}` : 'Sleep Check-in'}
+                    {quizLoggedToday ? 'Completed today' : sleepLogged ? `Question ${quizIndex + 1} / ${quizQuestions.length}` : 'Sleep Check-in'}
                   </span>
                   {!quizLoggedToday && (quizIndex > 0 || sleepLogged) && (
                     <button
                       onClick={resetQuiz}
                       className="text-[10px] underline text-on-primary-container hover:opacity-80"
-                      title="Ulang Kuis"
+                      title="Retake Quiz"
                     >
                       Reset
                     </button>
@@ -774,17 +774,17 @@ export default function GentleTriage() {
                 <div className="my-6 flex flex-col items-center text-center gap-3">
                   <span className="material-symbols-outlined text-4xl text-on-primary-container">task_alt</span>
                   <h3 className="text-lg sm:text-xl font-bold text-on-primary-container tracking-tight">
-                    Check-in hari ini sudah diisi
+                    Today's check-in is already complete
                   </h3>
                   <p className="text-sm text-on-primary-container/80 font-medium max-w-xs">
-                    Yes/No Quiz hanya bisa diisi sekali sehari. Sampai jumpa besok untuk check-in berikutnya!
+                    The Yes/No Quiz can only be filled once a day. See you tomorrow for the next check-in!
                   </p>
                   <button
                     type="button"
                     onClick={handleGoToFlowStudio}
                     className="mt-1 flex items-center justify-center gap-2 rounded-full bg-inverse-surface px-6 py-3 text-sm font-bold text-inverse-on-surface shadow-[0_3px_0_#121214] transition-all hover:opacity-90 active:translate-y-1 active:shadow-none"
                   >
-                    <span>Ke Flow Studio</span>
+                    <span>Go to Flow Studio</span>
                     <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
                   </button>
                 </div>
@@ -792,20 +792,20 @@ export default function GentleTriage() {
                 <>
                   <div className="my-6">
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-surface-container-lowest/60 px-2 py-0.5 rounded-md inline-block mb-1">
-                      Pola Tidur
+                      Sleep Pattern
                     </span>
                     <h3 className="text-xl sm:text-2xl font-bold text-on-primary-container tracking-tight">
-                      Berapa lama kamu tidur malam ini?
+                      How long did you sleep last night?
                     </h3>
                     <p className="text-sm text-on-primary-container/80 mt-1 font-medium">
-                      Geser slider untuk mengisi kartu Sleep Duration.
+                      Slide to fill in the Sleep Duration card.
                     </p>
                   </div>
 
                   <div className="flex flex-col gap-3">
                     <div className="flex items-baseline justify-center gap-1">
                       <span className="text-4xl font-bold text-on-primary-container tracking-tight">{sleepHoursDraft}</span>
-                      <span className="text-sm font-bold text-on-primary-container/80">jam</span>
+                      <span className="text-sm font-bold text-on-primary-container/80">hrs</span>
                     </div>
                     <input
                       type="range"
@@ -815,12 +815,12 @@ export default function GentleTriage() {
                       value={sleepHoursDraft}
                       onChange={(e) => setSleepHoursDraft(e.target.value)}
                       className="w-full h-2 bg-surface-container-lowest/60 rounded-lg appearance-none cursor-pointer accent-[#121214]"
-                      aria-label="Jam tidur malam ini"
+                      aria-label="Hours of sleep last night"
                     />
                     <div className="flex justify-between text-[10px] font-bold text-on-primary-container/70 px-0.5">
-                      <span>0 jam</span>
-                      <span>6 jam</span>
-                      <span>12 jam</span>
+                      <span>0 hrs</span>
+                      <span>6 hrs</span>
+                      <span>12 hrs</span>
                     </div>
                     <button
                       type="button"
@@ -828,7 +828,7 @@ export default function GentleTriage() {
                       disabled={isQuizAnswerConfirming}
                       className="mt-1 py-3 px-5 rounded-full font-bold text-sm bg-inverse-surface text-inverse-on-surface shadow-[0_3px_0_#121214] hover:opacity-90 active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:cursor-wait disabled:opacity-70"
                     >
-                      Simpan
+                      Save
                     </button>
                   </div>
                 </>
@@ -889,22 +889,22 @@ export default function GentleTriage() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_4px_0_#121214] animate-quiz-checkmark-pop">
                     <span className="material-symbols-outlined text-4xl" aria-hidden="true">check_circle</span>
                   </div>
-                  <span className="mt-4 text-xs font-bold uppercase tracking-wider text-on-primary-container">Check-in selesai</span>
+                  <span className="mt-4 text-xs font-bold uppercase tracking-wider text-on-primary-container">Check-in complete</span>
                   <h2 id="quiz-complete-title" className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-on-primary-container">
-                    Kuis kamu sudah selesai!
+                    Your quiz is complete!
                   </h2>
                   <p className="mt-2 max-w-sm text-sm font-medium leading-relaxed text-on-primary-container/80">
                     {lastQuizAnswer === 'no'
-                      ? 'Kuis kamu sudah selesai. Apakah kamu ingin mengulang kuis Yes/No?'
-                      : 'Kuis kamu sudah selesai. Lanjutkan ke Flow Studio untuk memakai hasil check-in ini.'}
+                      ? 'Your quiz is complete. Would you like to retake the Yes/No quiz?'
+                      : 'Your quiz is complete. Continue to Flow Studio to use this check-in result.'}
                   </p>
                   <div className="mt-5 flex justify-center">
                     {lastQuizAnswer === 'no' ? (
                       <button
                         type="button"
                         onClick={resetYesNoQuiz}
-                        title="Ulangi Yes/No Quiz"
-                        aria-label="Ulangi Yes/No Quiz"
+                        title="Retake Yes/No Quiz"
+                        aria-label="Retake Yes/No Quiz"
                         className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface shadow-[0_3px_0_#121214] transition-all hover:bg-surface-container active:translate-y-0.5 active:shadow-none"
                       >
                         <span className="material-symbols-outlined text-[24px]" aria-hidden="true">refresh</span>
@@ -915,7 +915,7 @@ export default function GentleTriage() {
                         onClick={handleGoToFlowStudio}
                         className="flex items-center justify-center gap-2 rounded-full bg-inverse-surface px-6 py-3 text-sm font-bold text-inverse-on-surface shadow-[0_4px_0_#121214] transition-all hover:opacity-90 active:translate-y-1 active:shadow-none"
                       >
-                        <span>Ke Flow Studio</span>
+                        <span>Go to Flow Studio</span>
                         <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
                       </button>
                     )}
@@ -932,7 +932,7 @@ export default function GentleTriage() {
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-secondary"></span>
                   <span className="text-xs uppercase tracking-wider text-on-surface-variant font-bold">
-                    Bebaskan Pikiran
+                    Free Your Mind
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -973,7 +973,7 @@ export default function GentleTriage() {
                   className="w-full rounded-[1.75rem] bg-surface-container p-4 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:bg-surface-container-high focus:ring-2 focus:ring-primary/40 transition-all resize-none font-medium leading-relaxed shadow-inner"
                 />
                 <div className="absolute right-3 bottom-3 text-[10px] font-mono text-on-surface-variant/60">
-                  {triageData.content.length} karakter
+                  {triageData.content.length} characters
                 </div>
               </div>
 
@@ -982,7 +982,7 @@ export default function GentleTriage() {
                   {brainDumpShareActive ? 'lock_open' : 'lock'}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold">{brainDumpDraftSavedAt ? 'Draft tersimpan otomatis di perangkat ini' : 'Draft pribadi siap ditulis'}</p>
+                  <p className="text-xs font-bold">{brainDumpDraftSavedAt ? 'Draft auto-saved on this device' : 'Private draft ready to write'}</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed opacity-85">{brainDumpPrivacyCopy}</p>
                 </div>
               </div>
@@ -999,11 +999,11 @@ export default function GentleTriage() {
                 {isProcessingSlice ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Mengurai Beban Pikiran Menjadi 3 Misi...</span>
+                    <span>Unraveling Your Mental Load Into 3 Missions...</span>
                   </>
                 ) : (
                   <>
-                    <span>Urai Jadi Langkah Ringan 🚀</span>
+                    <span>Unravel Into Light Steps 🚀</span>
                   </>
                 )}
               </button>

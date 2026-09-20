@@ -55,15 +55,15 @@ export function FlowProvider({ children }) {
   const [brainDumpOutcome, setBrainDumpOutcome] = useState(null);
   const chatSocketRef = useRef(null);
 
-  const [triageData, setTriageData] = useState({ content: '', tag: 'Tugas Menumpuk 📚', panicLevel: 3 });
+  const [triageData, setTriageData] = useState({ content: '', tag: 'Tasks Piling Up 📚', panicLevel: 3 });
   const [activeSound, setActiveSound] = useState(null);
   const [masterVolume, setMasterVolume] = useState(0.65);
   const [microTasks, setMicroTasks] = useState([
-    { id: 'task-1', action: 'Buka lembar kerja & beri judul sederhana', duration: '2 menit', guidance: 'Mulai saja dari halaman yang masih kosong.', completed: false, xp: 10 },
-    { id: 'task-2', action: 'Tulis 3 poin kasar tanpa mengejar sempurna', duration: '3 menit', guidance: 'Biar belum rapi; yang penting ada pijakan.', completed: false, xp: 20 },
-    { id: 'task-3', action: 'Minum air dan regangkan leher', duration: '2 menit', guidance: 'Rehat fisik singkat juga merupakan progres.', completed: false, xp: 15 },
+    { id: 'task-1', action: 'Open your worksheet & give it a simple title', duration: '2 minutes', guidance: 'Just start from a blank page.', completed: false, xp: 10 },
+    { id: 'task-2', action: 'Jot down 3 rough points without chasing perfection', duration: '3 minutes', guidance: 'It doesn\'t need to be tidy yet; what matters is having a foothold.', completed: false, xp: 20 },
+    { id: 'task-3', action: 'Drink some water and stretch your neck', duration: '2 minutes', guidance: 'A short physical break counts as progress too.', completed: false, xp: 15 },
   ]);
-  const [affirmation, setAffirmation] = useState('Tenangkan pikiranmu, cukup selesaikan langkah pertama.');
+  const [affirmation, setAffirmation] = useState('Calm your mind, just finish the first step.');
   const [isProcessingSlice, setIsProcessingSlice] = useState(false);
   const [totalXp, setTotalXp] = useState(0);
   const [vaultEntries, setVaultEntries] = useState([]);
@@ -128,7 +128,7 @@ export function FlowProvider({ children }) {
       headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...options.headers },
     });
     const payload = response.status === 204 ? null : await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.error || 'Permintaan tidak dapat diproses.');
+    if (!response.ok) throw new Error(payload?.error || 'Your request could not be processed.');
     return payload;
   };
 
@@ -333,7 +333,7 @@ export function FlowProvider({ children }) {
           });
         } catch {
           setBrainDumpOutcome(null);
-          setAuthError('Langkah ringan siap, tetapi catatanmu belum berhasil disimpan. Coba ulangi setelah koneksi kembali.');
+          setAuthError('Your gentle steps are ready, but your notes could not be saved yet. Try again once your connection is back.');
         }
       }
       setStep(2);
@@ -381,13 +381,13 @@ export function FlowProvider({ children }) {
   const sliceTaskSmaller = (taskId) => {
     setMicroTasks((previous) => previous.map((task) => task.id === taskId ? {
       ...task,
-      action: `Mulai dengan satu kata: ${task.action.slice(0, 36)}`,
-      duration: '1 menit',
-      guidance: 'Fokus hanya pada 60 detik pertama. Kamu belum perlu memikirkan langkah setelahnya.',
+      action: `Start with one word: ${task.action.slice(0, 36)}`,
+      duration: '1 minute',
+      guidance: 'Focus only on the first 60 seconds. You don\'t need to think about what comes next yet.',
     } : task));
   };
 
-  // Kembalikan semua misi ke status belum selesai (dipakai saat memulai putaran misi 5 menit yang baru)
+  // Reset all missions back to incomplete status (used when starting a new 5-minute mission round)
   const resetMicroTasks = () => {
     setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
   };
@@ -398,7 +398,7 @@ export function FlowProvider({ children }) {
     setMicroTasks((previous) => {
       const next = [...previous];
       const replaceAt = next.findIndex((task) => !task.completed);
-      next[replaceAt === -1 ? next.length - 1 : replaceAt] = { id: `custom-${Date.now()}`, action: cleanAction, duration: '2 menit', guidance: 'Tugas pilihanmu sudah menjadi misi aktif. Mulai dari langkah paling kecil.', completed: false, xp: 10 };
+      next[replaceAt === -1 ? next.length - 1 : replaceAt] = { id: `custom-${Date.now()}`, action: cleanAction, duration: '2 minutes', guidance: 'Your chosen task is now the active mission. Start with the smallest step.', completed: false, xp: 10 };
       return next;
     });
     return true;
@@ -437,7 +437,7 @@ export function FlowProvider({ children }) {
 
   const saveCurrentSession = async () => {
     if (hasSavedToday) {
-      setAuthError('Daily Pulse hari ini sudah tersimpan. Coba lagi besok, ya.');
+      setAuthError('Today\'s Daily Pulse is already saved. Come back and try again tomorrow.');
       return false;
     }
     const entry = {
@@ -455,7 +455,7 @@ export function FlowProvider({ children }) {
           ...entry,
           xpEarned: totalXp,
           date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-          reflection: 'Sesi tamu Careflow tersimpan di perangkat ini.',
+          reflection: 'Careflow guest session saved on this device.',
         });
         await refreshStoredSessions();
       }
@@ -475,7 +475,7 @@ export function FlowProvider({ children }) {
   };
 
   const resetFlow = () => {
-    setTriageData({ content: '', tag: 'Tugas Menumpuk 📚', panicLevel: 3 });
+    setTriageData({ content: '', tag: 'Tasks Piling Up 📚', panicLevel: 3 });
     setBrainDumpOutcome(null);
     setMicroTasks((previous) => previous.map((task) => ({ ...task, completed: false })));
     setTotalXp(0);

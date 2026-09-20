@@ -19,7 +19,7 @@ func TestPsychologistAssignmentAndPrivateChat(t *testing.T) {
 		t.Fatalf("ensureRoleDemoAccounts() error = %v", err)
 	}
 
-	user, userToken, err := store.createUser(Credentials{Name: "User Test", Email: "user@example.com", Password: "password-aman"})
+	user, userToken, err := store.createUser(Credentials{Name: "User Test", Email: "user@example.com", Password: "safe-password"})
 	if err != nil {
 		t.Fatalf("createUser() error = %v", err)
 	}
@@ -36,7 +36,7 @@ func TestPsychologistAssignmentAndPrivateChat(t *testing.T) {
 		t.Fatalf("select status = %d, body = %s", selectResponse.Code, selectResponse.Body.String())
 	}
 
-	chatRequest := httptest.NewRequest(http.MethodPost, "/api/chat/messages", bytes.NewBufferString(`{"recipientId":"`+psychologist.ID+`","content":"Saya ingin konsultasi."}`))
+	chatRequest := httptest.NewRequest(http.MethodPost, "/api/chat/messages", bytes.NewBufferString(`{"recipientId":"`+psychologist.ID+`","content":"I would like a consultation."}`))
 	chatRequest.Header.Set("Authorization", "Bearer "+userToken)
 	chatResponse := httptest.NewRecorder()
 	handleCreateChatMessage(store).ServeHTTP(chatResponse, chatRequest)
@@ -85,7 +85,7 @@ func TestDeclutterEntryUsesPersistedSharingConsent(t *testing.T) {
 		t.Fatalf("ensureRoleDemoAccounts() error = %v", err)
 	}
 
-	user, token, err := store.createUser(Credentials{Name: "Shared Note User", Email: "shared-note@example.com", Password: "password-aman"})
+	user, token, err := store.createUser(Credentials{Name: "Shared Note User", Email: "shared-note@example.com", Password: "safe-password"})
 	if err != nil {
 		t.Fatalf("createUser() error = %v", err)
 	}
@@ -97,7 +97,7 @@ func TestDeclutterEntryUsesPersistedSharingConsent(t *testing.T) {
 		t.Fatalf("selectPsychologist() error = %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/api/declutter", bytes.NewBufferString(`{"content":"Pikiran saya berputar saat malam.","tag":"Overthinking Malam 🌙","panicLevel":4,"shareWithPsychologist":false}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/declutter", bytes.NewBufferString(`{"content":"My thoughts keep spinning at night.","tag":"Late Night Overthinking 🌙","panicLevel":4,"shareWithPsychologist":false}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 	handleCreateDeclutterEntry(store).ServeHTTP(response, request)
@@ -130,7 +130,7 @@ func TestChatHistoryLimitsUsersButAllowsPsychologistDateAccess(t *testing.T) {
 		t.Fatalf("ensureRoleDemoAccounts() error = %v", err)
 	}
 
-	user, userToken, err := store.createUser(Credentials{Name: "History User", Email: "history@example.com", Password: "password-aman"})
+	user, userToken, err := store.createUser(Credentials{Name: "History User", Email: "history@example.com", Password: "safe-password"})
 	if err != nil {
 		t.Fatalf("createUser() error = %v", err)
 	}
@@ -142,8 +142,8 @@ func TestChatHistoryLimitsUsersButAllowsPsychologistDateAccess(t *testing.T) {
 		t.Fatalf("selectPsychologist() error = %v", err)
 	}
 
-	oldMessage := ChatMessage{ID: newID(), SenderID: user.ID, RecipientID: psychologist.ID, Content: "Pesan lama", CreatedAt: time.Now().AddDate(0, 0, -3).UTC()}
-	recentMessage := ChatMessage{ID: newID(), SenderID: psychologist.ID, RecipientID: user.ID, Content: "Pesan terbaru", CreatedAt: time.Now().UTC()}
+	oldMessage := ChatMessage{ID: newID(), SenderID: user.ID, RecipientID: psychologist.ID, Content: "Old message", CreatedAt: time.Now().AddDate(0, 0, -3).UTC()}
+	recentMessage := ChatMessage{ID: newID(), SenderID: psychologist.ID, RecipientID: user.ID, Content: "Recent message", CreatedAt: time.Now().UTC()}
 	store.chatMessages = append(store.chatMessages, oldMessage, recentMessage)
 
 	userRequest := httptest.NewRequest(http.MethodGet, "/api/chat/messages?withUserId="+psychologist.ID, nil)

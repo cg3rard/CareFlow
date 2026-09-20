@@ -15,7 +15,7 @@ func TestAccountSessionFlow(t *testing.T) {
 		t.Fatalf("newStore() error = %v", err)
 	}
 
-	registerBody := bytes.NewBufferString(`{"name":"Ayu Test","email":"ayu@example.com","password":"password-aman"}`)
+	registerBody := bytes.NewBufferString(`{"name":"Ayu Test","email":"ayu@example.com","password":"safe-password"}`)
 	registerRequest := httptest.NewRequest(http.MethodPost, "/api/auth/register", registerBody)
 	registerResponse := httptest.NewRecorder()
 	handleRegister(store).ServeHTTP(registerResponse, registerRequest)
@@ -56,7 +56,7 @@ func TestAccountSessionFlow(t *testing.T) {
 		t.Fatalf("streakDays = %d, want 1", profile.StreakDays)
 	}
 
-	loginRequest := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"email":"ayu@example.com","password":"password-aman"}`))
+	loginRequest := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"email":"ayu@example.com","password":"safe-password"}`))
 	loginResponse := httptest.NewRecorder()
 	handleLogin(store).ServeHTTP(loginResponse, loginRequest)
 	if loginResponse.Code != http.StatusOK {

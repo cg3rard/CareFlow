@@ -4,12 +4,12 @@ import { useFlow } from "../../context/FlowContext";
 function formatTime(value) {
   const date = new Date(value);
   const difference = Date.now() - date.getTime();
-  if (difference < 60_000) return "baru saja";
+  if (difference < 60_000) return "just now";
   if (difference < 3_600_000)
-    return `${Math.max(1, Math.floor(difference / 60_000))} mnt`;
+    return `${Math.max(1, Math.floor(difference / 60_000))} min`;
   if (difference < 86_400_000)
-    return `${Math.floor(difference / 3_600_000)} jam`;
-  return new Intl.DateTimeFormat("id-ID", {
+    return `${Math.floor(difference / 3_600_000)} hr`;
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(date);
@@ -40,11 +40,11 @@ function CommunitySidebar({ count, className }) {
           Circle Feed
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-on-surface-variant">
-          Ruang komunitas untuk berbagi cerita dan saling memberi dukungan
-          dengan cara yang aman dan penuh empati.
+          A community space to share stories and support one another in a way
+          that is safe and full of empathy.
         </p>
         <div className="mt-6 border-t border-primary-container pt-4 text-xs font-semibold text-on-surface-variant">
-          {count} cerita dibagikan
+          {count} stories shared
         </div>
       </div>
     </aside>
@@ -112,8 +112,8 @@ export default function CommunityPage() {
     await createCommunityPost(input);
     setNotice(
       input.isAnonymous
-        ? "Cerita anonim kamu sudah dibagikan dengan aman."
-        : "Cerita kamu sudah dibagikan ke Circle Feed.",
+        ? "Your anonymous story has been shared safely."
+        : "Your story has been shared to the Circle Feed.",
     );
   };
   const like = async (post) => {
@@ -153,16 +153,16 @@ export default function CommunityPage() {
     try {
       if (navigator.share)
         await navigator.share({
-          title: "Cerita dari Careflow Community",
+          title: "A story from Careflow Community",
           text,
           url,
         });
       else if (navigator.clipboard) await navigator.clipboard.writeText(url);
-      setNotice("Tautan cerita siap dibagikan.");
+      setNotice("The story link is ready to share.");
     } catch (error) {
       if (error?.name !== "AbortError")
         setNotice(
-          "Bagikan tercatat. Salin tautan dari halaman ini bila diperlukan.",
+          "Share recorded. Copy the link from this page if needed.",
         );
     }
   };
@@ -175,18 +175,18 @@ export default function CommunityPage() {
             diversity_3
           </span>
           <h1 className="mt-4 text-3xl font-bold text-on-surface">
-            Masuk untuk bergabung
+            Sign in to join
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Community Careflow adalah ruang aman untuk berbagi, memberi
-            dukungan, dan tumbuh bersama.
+            Careflow Community is a safe space to share, give support, and grow
+            together.
           </p>
           <button
             type="button"
             onClick={startLogin}
             className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-[0_3px_0_#121214]"
           >
-            Masuk ke Careflow
+            Sign in to Careflow
           </button>
         </div>
       </section>
@@ -208,7 +208,7 @@ export default function CommunityPage() {
           <button
             type="button"
             onClick={() => setNotice("")}
-            aria-label="Tutup pesan"
+            aria-label="Close message"
             className="rounded-full p-1 hover:bg-white/30"
           >
             <span className="material-symbols-outlined text-base">close</span>
@@ -236,16 +236,16 @@ export default function CommunityPage() {
                   <span className="material-symbols-outlined text-base">
                     arrow_back
                   </span>
-                  Kembali ke Community
+                  Back to Community
                 </button>
               ) : null}
               <h2 className="text-xl font-bold text-on-surface">
-                {feedId ? "Detail cerita" : "Circle Feed"}
+                {feedId ? "Story details" : "Circle Feed"}
               </h2>
               <p className="text-xs text-on-surface-variant">
                 {feedId
-                  ? "Baca cerita dan respons komunitas secara lebih fokus."
-                  : "Cerita terbaru dari ruang yang saling menjaga."}
+                  ? "Read the story and community responses with more focus."
+                  : "The latest stories from a space that looks out for each other."}
               </p>
             </div>
             {!feedId && (
@@ -256,7 +256,7 @@ export default function CommunityPage() {
                   loadCommunity().finally(() => setLoading(false));
                 }}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface shadow-[0_2px_0_#121214]"
-                aria-label="Muat ulang komunitas"
+                aria-label="Reload community"
               >
                 <span
                   className={`material-symbols-outlined ${loading ? "animate-spin" : ""}`}
@@ -302,11 +302,11 @@ function PostComposer({ onPublish }) {
     setMediaError("");
     if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      setMediaError("Pilih file foto atau video.");
+      setMediaError("Choose a photo or video file.");
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
-      setMediaError("Ukuran foto atau video maksimal 4 MB.");
+      setMediaError("Photo or video size can be at most 4 MB.");
       return;
     }
     const reader = new FileReader();
@@ -317,7 +317,7 @@ function PostComposer({ onPublish }) {
         data: String(reader.result),
       });
     reader.onerror = () =>
-      setMediaError("Media tidak dapat dibaca. Coba file lain.");
+      setMediaError("The media could not be read. Try another file.");
     reader.readAsDataURL(file);
   };
   const submit = async (event) => {
@@ -327,7 +327,7 @@ function PostComposer({ onPublish }) {
     try {
       await onPublish({
         body,
-        topicTag: "Ruang aman",
+        topicTag: "Safe space",
         isAnonymous,
         mediaMime: media?.type || "",
         mediaData: media?.data || "",
@@ -337,7 +337,7 @@ function PostComposer({ onPublish }) {
       setIsAnonymous(false);
     } catch (error) {
       setMediaError(
-        error.message || "Post belum berhasil dibagikan. Coba lagi.",
+        error.message || "The post could not be shared. Please try again.",
       );
     } finally {
       setPublishing(false);
@@ -355,10 +355,10 @@ function PostComposer({ onPublish }) {
             progress_activity
           </span>
           <strong className="mt-2 text-sm text-on-surface">
-            Membagikan cerita…
+            Sharing your story…
           </strong>
           <span className="mt-1 text-xs text-on-surface-variant">
-            Tunggu sebentar, jangan tutup halaman.
+            Please wait a moment, don't close the page.
           </span>
         </div>
       )}
@@ -369,12 +369,12 @@ function PostComposer({ onPublish }) {
           {isAnonymous ? (
             <span className="material-symbols-outlined">visibility_off</span>
           ) : (
-            "K"
+            "Y"
           )}
         </div>
         <div className="min-w-0 flex-1">
           <label className="sr-only" htmlFor="community-post">
-            Bagikan ceritamu
+            Share your story
           </label>
           <textarea
             id="community-post"
@@ -383,7 +383,7 @@ function PostComposer({ onPublish }) {
             onChange={(event) => setBody(event.target.value)}
             maxLength="2000"
             rows="3"
-            placeholder="Apa yang sedang ingin kamu bagikan hari ini?"
+            placeholder="What would you like to share today?"
             className="w-full resize-none bg-transparent text-sm leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant/70"
           />
         </div>
@@ -394,7 +394,7 @@ function PostComposer({ onPublish }) {
             type="button"
             onClick={() => setMedia(null)}
             className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-[0_2px_0_#121214]"
-            aria-label="Hapus media"
+            aria-label="Remove media"
           >
             <span className="material-symbols-outlined text-base">close</span>
           </button>
@@ -407,7 +407,7 @@ function PostComposer({ onPublish }) {
           ) : (
             <img
               src={media.data}
-              alt="Pratinjau lampiran posting"
+              alt="Post attachment preview"
               className="max-h-80 w-full object-cover"
             />
           )}
@@ -429,7 +429,7 @@ function PostComposer({ onPublish }) {
               <span className="material-symbols-outlined text-base">
                 perm_media
               </span>
-              Foto / video
+              Photo / video
             </span>
           </label>
           <button
@@ -442,7 +442,7 @@ function PostComposer({ onPublish }) {
               <span className="material-symbols-outlined text-base">
                 {isAnonymous ? "visibility_off" : "person"}
               </span>
-              {isAnonymous ? "Posting anonim" : "Tampilkan nama"}
+              {isAnonymous ? "Posting anonymously" : "Show name"}
             </span>
           </button>
         </div>
@@ -450,7 +450,7 @@ function PostComposer({ onPublish }) {
           disabled={publishing || !body.trim()}
           className="rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-on-primary shadow-[0_3px_0_#121214] disabled:opacity-50"
         >
-          {publishing ? "Membagikan…" : "Bagikan cerita"}
+          {publishing ? "Sharing…" : "Share story"}
         </button>
       </div>
     </form>
@@ -526,7 +526,7 @@ function PostCard({
                 </h3>
                 {post.isAnonymous && (
                   <span className="rounded-full bg-surface-container px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    Anonim
+                    Anonymous
                   </span>
                 )}
                 {post.isAnonymous && post.isMine && (
@@ -547,7 +547,7 @@ function PostCard({
                 event.stopPropagation();
                 setMenuOpen((value) => !value);
               }}
-              aria-label="Menu postingan"
+              aria-label="Post menu"
               className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
             >
               <span className="material-symbols-outlined">more_horiz</span>
@@ -583,7 +583,7 @@ function PostCard({
           ) : (
             <img
               src={post.mediaData}
-              alt="Lampiran cerita komunitas"
+              alt="Community story attachment"
               className="max-h-[32rem] w-full object-contain"
             />
           )}
@@ -609,17 +609,17 @@ function PostCard({
               onClick={onLike}
               active={post.likedByMe}
               icon={post.likedByMe ? "favorite" : "favorite_border"}
-              label={post.likeCount || "Suka"}
+              label={post.likeCount || "Like"}
             />
             <ActionButton
               onClick={() => setCommentsOpen((value) => !value)}
               icon="chat_bubble_outline"
-              label={post.commentCount || "Balas"}
+              label={post.commentCount || "Reply"}
             />
             <ActionButton
               onClick={onShare}
               icon="ios_share"
-              label={post.shareCount || "Bagikan"}
+              label={post.shareCount || "Share"}
             />
           </div>
         )}
@@ -647,7 +647,7 @@ function PostCard({
                 ))
               ) : (
                 <p className="rounded-2xl bg-surface-container p-3 text-xs text-on-surface-variant">
-                  Belum ada balasan. Jadilah dukungan pertama.
+                  No replies yet. Be the first to offer support.
                 </p>
               )}
             </div>
@@ -657,7 +657,7 @@ function PostCard({
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
                   maxLength={1200}
-                  placeholder="Tulis respons yang hangat…"
+                  placeholder="Write a warm response…"
                   className="min-w-0 flex-1 rounded-full bg-surface-container px-4 py-2.5 text-xs text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
                 />
                 <button
@@ -665,7 +665,7 @@ function PostCard({
                   disabled={sending || !comment.trim()}
                   className="rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-on-primary disabled:opacity-50"
                 >
-                  {sending ? "…" : "Kirim"}
+                  {sending ? "…" : "Send"}
                 </button>
               </form>
             )}
@@ -717,12 +717,12 @@ function EmptyFeed({ detail }) {
         forum
       </span>
       <h3 className="mt-4 text-xl font-bold text-on-surface">
-        {detail ? "Cerita tidak ditemukan" : "Mulai cerita pertama"}
+        {detail ? "Story not found" : "Start the first story"}
       </h3>
       <p className="mt-2 text-sm text-on-surface-variant">
         {detail
-          ? "Tautan ini mungkin sudah tidak tersedia atau kamu belum memiliki akses."
-          : "Ruang ini siap menerima cerita yang kamu ingin bagikan."}
+          ? "This link may no longer be available or you may not have access."
+          : "This space is ready to receive the story you'd like to share."}
       </p>
     </div>
   );

@@ -338,14 +338,14 @@ func parseDateOfBirth(raw string) (*string, error) {
 	}
 	parsed, err := time.Parse("2006-01-02", trimmed)
 	if err != nil {
-		return nil, errors.New("tanggal lahir tidak valid (gunakan format YYYY-MM-DD)")
+		return nil, errors.New("invalid date of birth (use YYYY-MM-DD format)")
 	}
 	now := time.Now().UTC()
 	if parsed.After(now) {
-		return nil, errors.New("tanggal lahir tidak boleh di masa depan")
+		return nil, errors.New("date of birth cannot be in the future")
 	}
 	if parsed.Before(now.AddDate(-150, 0, 0)) {
-		return nil, errors.New("tanggal lahir tidak valid")
+		return nil, errors.New("invalid date of birth")
 	}
 	normalized := parsed.Format("2006-01-02")
 	return &normalized, nil
@@ -355,13 +355,13 @@ func (s *Store) createUser(input Credentials) (User, string, error) {
 	name := strings.TrimSpace(input.Name)
 	email := strings.ToLower(strings.TrimSpace(input.Email))
 	if len(name) < 2 || len(name) > 80 {
-		return User{}, "", errors.New("nama harus terdiri dari 2 sampai 80 karakter")
+		return User{}, "", errors.New("name must be between 2 and 80 characters")
 	}
 	if !strings.Contains(email, "@") || len(email) > 254 {
-		return User{}, "", errors.New("email tidak valid")
+		return User{}, "", errors.New("invalid email")
 	}
 	if len(input.Password) < 8 || len(input.Password) > 128 {
-		return User{}, "", errors.New("kata sandi harus terdiri dari 8 sampai 128 karakter")
+		return User{}, "", errors.New("password must be between 8 and 128 characters")
 	}
 	dateOfBirth, err := parseDateOfBirth(input.DateOfBirth)
 	if err != nil {
@@ -379,7 +379,7 @@ func (s *Store) createUser(input Credentials) (User, string, error) {
 	defer s.mu.Unlock()
 	for _, user := range s.users {
 		if user.Email == email {
-			return User{}, "", errors.New("email sudah terdaftar")
+			return User{}, "", errors.New("email is already registered")
 		}
 	}
 	user := User{ID: newID(), Name: name, Email: email, PasswordHash: string(hash), DateOfBirth: dateOfBirth, CreatedAt: time.Now().UTC()}
@@ -403,11 +403,11 @@ func (s *Store) login(email, password string) (User, string, error) {
 			continue
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-			return User{}, "", errors.New("email atau kata sandi salah")
+			return User{}, "", errors.New("incorrect email or password")
 		}
 		return user, s.createTokenLocked(user.ID), nil
 	}
-	return User{}, "", errors.New("email atau kata sandi salah")
+	return User{}, "", errors.New("incorrect email or password")
 }
 
 func (s *Store) createTokenLocked(userID string) string {
@@ -452,7 +452,7 @@ func (s *Store) addSession(userID string, input SessionInput) (SessionRecord, er
 		mascot = "Gentle"
 	}
 	if input.CompletedTasksCount < 0 || input.CompletedTasksCount > 3 || input.TotalXP < 0 || input.TotalXP > 1000000 {
-		return SessionRecord{}, errors.New("data sesi tidak valid")
+		return SessionRecord{}, errors.New("invalid session data")
 	}
 	record := SessionRecord{ID: newID(), UserID: userID, CreatedAt: time.Now().UTC(), Mood: mood, Mascot: mascot, CompletedTasksCount: input.CompletedTasksCount, TotalXP: input.TotalXP}
 	if s.db != nil {
@@ -502,10 +502,10 @@ func jakartaToday() string {
 // user. Passing a nil field leaves that column untouched on update.
 func (s *Store) upsertDailyMetric(userID string, input DailyMetricInput) (DailyMetric, error) {
 	if input.SleepHours != nil && (*input.SleepHours < 0 || *input.SleepHours > 24) {
-		return DailyMetric{}, errors.New("durasi tidur tidak valid")
+		return DailyMetric{}, errors.New("invalid sleep duration")
 	}
 	if input.StressScore != nil && (*input.StressScore < 0 || *input.StressScore > 100) {
-		return DailyMetric{}, errors.New("skor stres tidak valid")
+		return DailyMetric{}, errors.New("invalid stress score")
 	}
 	stressLabel := strings.TrimSpace(input.StressLabel)
 	if len(stressLabel) > 40 {
@@ -575,26 +575,26 @@ func (s *Store) addDeclutterEntry(userID string, input DeclutterInput) (Declutte
 	content := strings.TrimSpace(input.Content)
 	tag := strings.TrimSpace(input.Tag)
 	if content == "" {
-		return DeclutterEntry{}, errors.New("isi catatan tidak boleh kosong")
+		return DeclutterEntry{}, errors.New("note content cannot be empty")
 	}
 	if len(content) > 4000 {
-		return DeclutterEntry{}, errors.New("isi catatan terlalu panjang")
+		return DeclutterEntry{}, errors.New("note content is too long")
 	}
 	if tag == "" {
-		tag = "Umum"
+		tag = "General"
 	}
 	if len(tag) > 80 {
-		return DeclutterEntry{}, errors.New("tag tidak valid")
+		return DeclutterEntry{}, errors.New("invalid tag")
 	}
 	if input.PanicLevel < 1 || input.PanicLevel > 5 {
-		return DeclutterEntry{}, errors.New("tingkat panik tidak valid")
+		return DeclutterEntry{}, errors.New("invalid panic level")
 	}
 	charLength := len(content)
-	overwhelmLevel := "Ringan"
+	overwhelmLevel := "Low"
 	if charLength > 120 {
-		overwhelmLevel = "Tinggi"
+		overwhelmLevel = "High"
 	} else if charLength > 40 {
-		overwhelmLevel = "Sedang"
+		overwhelmLevel = "Medium"
 	}
 	entry := DeclutterEntry{ID: newID(), UserID: userID, Content: content, Tag: tag, PanicLevel: input.PanicLevel, OverwhelmLevel: overwhelmLevel, ShareWithPsychologist: input.ShareWithPsychologist, CreatedAt: time.Now().UTC()}
 	if s.db != nil {
@@ -633,7 +633,7 @@ func (s *Store) declutterEntriesForUser(userID string) []DeclutterEntry {
 // addTaskCompletion records the real moment a micro-task was completed.
 func (s *Store) addTaskCompletion(userID string, input TaskCompletionInput) (TaskCompletion, error) {
 	if input.XP < 0 || input.XP > 1000 {
-		return TaskCompletion{}, errors.New("nilai XP tidak valid")
+		return TaskCompletion{}, errors.New("invalid XP value")
 	}
 	completion := TaskCompletion{ID: newID(), UserID: userID, XP: input.XP, CompletedAt: time.Now().UTC()}
 	if s.db != nil {
@@ -745,7 +745,7 @@ func handleLogin(store *Store) http.HandlerFunc {
 		store.hydrateAccess(&user)
 		if user.IsBanned {
 			store.revokeToken(token)
-			writeError(w, http.StatusForbidden, "akun ini diblokir oleh admin")
+			writeError(w, http.StatusForbidden, "this account has been banned by an admin")
 			return
 		}
 		writeJSON(w, http.StatusOK, authResponse(user, token, calculateStreak(store.sessionsForUser(user.ID)), store.lifetimeXPForUser(user.ID)))
@@ -756,7 +756,7 @@ func handleLogout(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, _, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "sesi tidak valid")
+			writeError(w, http.StatusUnauthorized, "invalid session")
 			return
 		}
 		store.revokeToken(token)
@@ -768,7 +768,7 @@ func handleMe(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "sesi tidak valid")
+			writeError(w, http.StatusUnauthorized, "invalid session")
 			return
 		}
 		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), false, store.lifetimeXPForUser(user.ID)))
@@ -779,7 +779,7 @@ func handleCreateSession(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input SessionInput
@@ -799,7 +799,7 @@ func handleListSessions(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		writeJSON(w, http.StatusOK, profileResponse(user, store.sessionsForUser(user.ID), true, store.lifetimeXPForUser(user.ID)))
@@ -810,7 +810,7 @@ func handleUpsertDailyMetric(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input DailyMetricInput
@@ -830,7 +830,7 @@ func handleListDailyMetrics(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"metrics": store.dailyMetricsForUserLastWeek(user.ID)})
@@ -841,7 +841,7 @@ func handleCreateDeclutterEntry(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input DeclutterInput
@@ -864,7 +864,7 @@ func handleListDeclutterEntries(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"entries": store.declutterEntriesForUser(user.ID)})
@@ -875,7 +875,7 @@ func handleCreateTaskCompletion(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		var input TaskCompletionInput
@@ -895,7 +895,7 @@ func handleListTaskCompletions(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, user, ok := authenticatedUser(r, store)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			writeError(w, http.StatusUnauthorized, "please log in first")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"completions": store.taskCompletionsForUserLastWeek(user.ID)})
@@ -939,11 +939,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func handleEmergencyResources(w http.ResponseWriter, r *http.Request) {
 	resources := []EmergencyResource{
-		{ID: "hotline-sejiwa", Name: "Layanan Sejiwa (Kemenkes & HIMSPSI)", Category: "National Hotline", Phone: "119 ext 8", Description: "Layanan konseling psikologis darurat resmi pemerintah untuk masyarakat Indonesia yang mengalami krisis emosional.", Availability: "Periksa ketersediaan layanan terbaru", Location: "Nasional", Website: "https://kemkes.go.id"},
-		{ID: "hotline-kemenkes", Name: "Hotline Kesehatan Kemenkes RI", Category: "National Hotline", Phone: "1500-567", Description: "Pusat panggilan layanan kesehatan Kementerian Kesehatan RI.", Availability: "Periksa ketersediaan layanan terbaru", Location: "Nasional", Website: "https://kemkes.go.id"},
-		{ID: "hotline-lisa", Name: "Love Inside Suicide Awareness (LISA)", Category: "National Hotline", Phone: "0811-3855-472", Description: "Dukungan pencegahan bunuh diri dan konseling krisis bilingual.", Availability: "Periksa ketersediaan layanan terbaru", Location: "Nasional", Website: "https://www.lisahelpline.org"},
-		{ID: "campus-unjani-yk", Name: "Pusat Konseling Mahasiswa UNJANI Yogyakarta", Category: "Campus Counseling", Phone: "(0274) 4342000", Description: "Layanan bimbingan konseling akademik dan kesehatan mental untuk sivitas UNJANI Yogyakarta.", Availability: "Senin–Jumat, jam kerja", Location: "Sleman, D.I. Yogyakarta", Website: "https://unjaya.ac.id"},
-		{ID: "campus-ugm", Name: "Gadjah Mada Medical Center & Konseling UGM", Category: "Campus Counseling", Phone: "(0274) 551412", Description: "Layanan psikolog klinis dan konseling mahasiswa terpadu UGM.", Availability: "Senin–Jumat, jam kerja", Location: "Yogyakarta", Website: "https://gmc.ugm.ac.id"},
+		{ID: "hotline-sejiwa", Name: "Sejiwa Service (Ministry of Health & HIMSPSI)", Category: "National Hotline", Phone: "119 ext 8", Description: "Official government emergency psychological counseling service for Indonesians experiencing an emotional crisis.", Availability: "Check for latest service availability", Location: "National", Website: "https://kemkes.go.id"},
+		{ID: "hotline-kemenkes", Name: "Indonesian Ministry of Health Hotline", Category: "National Hotline", Phone: "1500-567", Description: "Call center for health services from the Indonesian Ministry of Health.", Availability: "Check for latest service availability", Location: "National", Website: "https://kemkes.go.id"},
+		{ID: "hotline-lisa", Name: "Love Inside Suicide Awareness (LISA)", Category: "National Hotline", Phone: "0811-3855-472", Description: "Bilingual suicide prevention support and crisis counseling.", Availability: "Check for latest service availability", Location: "National", Website: "https://www.lisahelpline.org"},
+		{ID: "campus-unjani-yk", Name: "UNJANI Yogyakarta Student Counseling Center", Category: "Campus Counseling", Phone: "(0274) 4342000", Description: "Academic guidance and mental health counseling services for the UNJANI Yogyakarta community.", Availability: "Monday-Friday, business hours", Location: "Sleman, Yogyakarta Special Region", Website: "https://unjaya.ac.id"},
+		{ID: "campus-ugm", Name: "Gadjah Mada Medical Center & UGM Counseling", Category: "Campus Counseling", Phone: "(0274) 551412", Description: "Integrated clinical psychology and student counseling services at UGM.", Availability: "Monday-Friday, business hours", Location: "Yogyakarta", Website: "https://gmc.ugm.ac.id"},
 	}
 	writeJSON(w, http.StatusOK, resources)
 }
@@ -956,7 +956,7 @@ func handleTaskSlice(cfg Config) http.HandlerFunc {
 		}
 		content := strings.TrimSpace(req.Content)
 		if content == "" {
-			content = "Tugas kuliah yang terasa menumpuk dan mendesak"
+			content = "College assignments that feel like they're piling up and urgent"
 		}
 		tag := strings.TrimSpace(req.Tag)
 		if tag == "" {
@@ -982,19 +982,19 @@ func handleTaskSlice(cfg Config) http.HandlerFunc {
 }
 
 func callGeminiSlice(ctx context.Context, apiKey, content, tag string, panicLevel int) (*SliceResponse, error) {
-	prompt := fmt.Sprintf(`Kamu adalah teman yang santai dan suportif, bukan terapis formal. Buat TEPAT tiga langkah mikro CBT yang aman untuk meredakan overthinking, dalam Bahasa Indonesia sehari-hari yang hangat dan friendly.
+	prompt := fmt.Sprintf(`You are a relaxed, supportive friend, not a formal therapist. Create EXACTLY three safe, micro CBT steps to ease overthinking, in warm, friendly, everyday English.
 
-Aturan penting:
-- "action" harus SANGAT SINGKAT: maksimal 5-7 kata, seperti judul aksi, bukan kalimat penuh. Contoh: "Tarik napas 3x pelan-pelan" atau "Tulis 1 kalimat aja dulu".
-- "guidance" maksimal 1 kalimat pendek, santai, tanpa jargon psikologi.
-- "affirmation" 1 kalimat pendek, hangat, dan friendly.
-- Setiap langkah harus bisa selesai di bawah 5 menit.
-- JANGAN gunakan emoji atau simbol non-teks apa pun.
-- JANGAN bertele-tele atau memberi ceramah panjang.
+Important rules:
+- "action" must be VERY SHORT: max 5-7 words, like an action title, not a full sentence. Example: "Take 3 slow breaths" or "Write just 1 sentence for now".
+- "guidance" max 1 short, casual sentence, no psychology jargon.
+- "affirmation" 1 short, warm, friendly sentence.
+- Each step must be doable in under 5 minutes.
+- DO NOT use emoji or any non-text symbols.
+- DO NOT ramble or give long lectures.
 
-Kembalikan HANYA JSON ini: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 menit","guidance":"..."}]}.
+Return ONLY this JSON: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 minutes","guidance":"..."}]}.
 
-Beban: %q. Kategori: %q. Tingkat panik: %d/5.`, content, tag, panicLevel)
+Burden: %q. Category: %q. Panic level: %d/5.`, content, tag, panicLevel)
 	payload, err := json.Marshal(map[string]any{"contents": []map[string]any{{"parts": []map[string]string{{"text": prompt}}}}, "generationConfig": map[string]any{"temperature": 0.4, "responseMimeType": "application/json"}})
 	if err != nil {
 		return nil, err
@@ -1040,31 +1040,31 @@ Beban: %q. Kategori: %q. Tingkat panik: %d/5.`, content, tag, panicLevel)
 
 func generateHeuristicSlice(content, tag string, panicLevel int) SliceResponse {
 	text := strings.ToLower(content + " " + tag)
-	affirmation := "Tarik napas perlahan. Kamu tidak harus menyelesaikan semuanya hari ini; cukup mulai dari satu sentuhan kecil."
+	affirmation := "Take a slow breath. You don't have to finish everything today; it's enough to start with one small touch."
 	if panicLevel >= 4 {
-		affirmation = "Detak jantungmu mungkin sedang tinggi. Mari tenangkan tubuh dulu, lalu uraikan satu langkah kecil."
+		affirmation = "Your heart rate might be high right now. Let's calm the body first, then break it down into one small step."
 	}
 	var tasks []MicroTask
 	switch {
-	case strings.Contains(text, "skripsi") || strings.Contains(text, "proposal"):
-		tasks = taskSet("Buka dokumen dan tulis satu judul subbab", "Buka satu referensi lalu sorot dua kalimat penting", "Rangkum kutipan itu menjadi dua kalimat dengan bahasamu sendiri")
-	case strings.Contains(text, "ujian") || strings.Contains(text, "kuis"):
-		tasks = taskSet("Pilih satu topik paling familier dari silabus", "Tulis tiga istilah atau rumus inti di kertas", "Baca pembahasan satu contoh soal saja")
-	case strings.Contains(text, "presentasi") || strings.Contains(text, "ppt"):
-		tasks = taskSet("Buka presentasi dan buat slide judul", "Tulis tiga poin bahasan kasar di slide kedua", "Tambahkan satu visual pendukung di slide ketiga")
-	case strings.Contains(text, "koding") || strings.Contains(text, "coding") || strings.Contains(text, "bug"):
-		tasks = taskSet("Buka file terkait dan tulis satu komentar TODO", "Tambahkan satu log/debugger di titik masuk data", "Ubah satu hal kecil lalu jalankan program sekali")
+	case strings.Contains(text, "thesis") || strings.Contains(text, "proposal"):
+		tasks = taskSet("Open the document and write one subsection title", "Open one reference and highlight two key sentences", "Summarize that quote into two sentences in your own words")
+	case strings.Contains(text, "exam") || strings.Contains(text, "quiz"):
+		tasks = taskSet("Pick the one topic most familiar from the syllabus", "Write three key terms or formulas on paper", "Read the explanation of just one example problem")
+	case strings.Contains(text, "presentation") || strings.Contains(text, "slides"):
+		tasks = taskSet("Open the presentation and create a title slide", "Write three rough discussion points on the second slide", "Add one supporting visual on the third slide")
+	case strings.Contains(text, "coding") || strings.Contains(text, "code") || strings.Contains(text, "bug"):
+		tasks = taskSet("Open the related file and write one TODO comment", "Add one log/debugger at the data entry point", "Change one small thing then run the program once")
 	default:
-		tasks = taskSet("Buka folder tugas dan singkirkan dua benda pengalih", "Tulis satu langkah termudah yang selesai dalam tiga menit", "Kerjakan langkah kecil itu lalu beri tanda centang")
+		tasks = taskSet("Open the task folder and clear away two distractions", "Write the easiest step that takes three minutes to finish", "Do that small step then check it off")
 	}
 	return SliceResponse{Source: "heuristic_engine", Affirmation: affirmation, Tag: tag, Tasks: tasks}
 }
 
 func taskSet(first, second, third string) []MicroTask {
 	return []MicroTask{
-		{ID: "task-1", Action: first, Duration: "2 menit", Guidance: "Cukup mulai; hasilnya belum harus rapi."},
-		{ID: "task-2", Action: second, Duration: "3 menit", Guidance: "Fokus pada satu hal kecil tanpa mengejar kesempurnaan."},
-		{ID: "task-3", Action: third, Duration: "4 menit", Guidance: "Satu langkah selesai sudah cukup untuk membangun momentum."},
+		{ID: "task-1", Action: first, Duration: "2 minutes", Guidance: "Just start; it doesn't have to be neat yet."},
+		{ID: "task-2", Action: second, Duration: "3 minutes", Guidance: "Focus on one small thing without chasing perfection."},
+		{ID: "task-3", Action: third, Duration: "4 minutes", Guidance: "Finishing one step is enough to build momentum."},
 	}
 }
 
@@ -1098,14 +1098,14 @@ func decodeJSONWithLimit(w http.ResponseWriter, r *http.Request, target any, lim
 	if err := decoder.Decode(target); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeError(w, http.StatusRequestEntityTooLarge, "ukuran foto atau video terlalu besar; maksimal 4 MB")
+			writeError(w, http.StatusRequestEntityTooLarge, "photo or video size is too large; maximum 4 MB")
 			return err
 		}
-		writeError(w, http.StatusBadRequest, "format data tidak valid")
+		writeError(w, http.StatusBadRequest, "invalid data format")
 		return err
 	}
 	if decoder.Decode(&struct{}{}) != io.EOF {
-		writeError(w, http.StatusBadRequest, "hanya satu objek JSON yang diperbolehkan")
+		writeError(w, http.StatusBadRequest, "only a single JSON object is allowed")
 		return errors.New("multiple JSON values")
 	}
 	return nil

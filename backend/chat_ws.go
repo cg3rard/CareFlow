@@ -68,17 +68,17 @@ func handleChatWebSocket(store *Store, hub *chatHub, allowedOrigin string) http.
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
 		if token == "" {
-			writeError(w, http.StatusUnauthorized, "sesi tidak valid")
+			writeError(w, http.StatusUnauthorized, "invalid session")
 			return
 		}
 		user, ok := store.userForToken(token)
 		if !ok {
-			writeError(w, http.StatusUnauthorized, "sesi tidak valid")
+			writeError(w, http.StatusUnauthorized, "invalid session")
 			return
 		}
 		store.hydrateAccess(&user)
 		if user.IsBanned {
-			writeError(w, http.StatusForbidden, "akun diblokir")
+			writeError(w, http.StatusForbidden, "account is banned")
 			return
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)

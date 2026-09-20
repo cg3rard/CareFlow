@@ -132,7 +132,7 @@ type CommunityActivity struct {
 func normalizeCommunityText(value string, min, max int, field string) (string, error) {
 	value = strings.TrimSpace(value)
 	if len(value) < min || len(value) > max {
-		return "", fmt.Errorf("%s harus terdiri dari %d sampai %d karakter", field, min, max)
+		return "", fmt.Errorf("%s must be between %d and %d characters", field, min, max)
 	}
 	return value, nil
 }
@@ -148,33 +148,33 @@ func validateCommunityMedia(mime, data string) (string, string, int, error) {
 		"video/mp4": true, "video/webm": true, "video/quicktime": true,
 	}
 	if !allowed[mime] {
-		return "", "", 0, errors.New("format media harus JPEG, PNG, WEBP, GIF, MP4, WEBM, atau MOV")
+		return "", "", 0, errors.New("media format must be JPEG, PNG, WEBP, GIF, MP4, WEBM, or MOV")
 	}
 	prefix := "data:" + mime + ";base64,"
 	if !strings.HasPrefix(data, prefix) {
-		return "", "", 0, errors.New("data media tidak valid")
+		return "", "", 0, errors.New("invalid media data")
 	}
 	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(data, prefix))
 	if err != nil || len(decoded) == 0 {
-		return "", "", 0, errors.New("data media tidak valid")
+		return "", "", 0, errors.New("invalid media data")
 	}
 	if len(decoded) > communityMediaMaxBytes {
-		return "", "", 0, errors.New("ukuran foto atau video maksimal 4 MB")
+		return "", "", 0, errors.New("photo or video size must be at most 4 MB")
 	}
 	return mime, data, len(decoded), nil
 }
 
 func (s *Store) createCommunityPost(authorID string, input CommunityPostInput) (CommunityPost, error) {
-	body, err := normalizeCommunityText(input.Body, 1, 2000, "isi postingan")
+	body, err := normalizeCommunityText(input.Body, 1, 2000, "post content")
 	if err != nil {
 		return CommunityPost{}, err
 	}
 	topic := strings.TrimSpace(input.TopicTag)
 	if topic == "" {
-		topic = "Ruang aman"
+		topic = "Safe space"
 	}
 	if len(topic) > 40 {
-		return CommunityPost{}, errors.New("topik maksimal 40 karakter")
+		return CommunityPost{}, errors.New("topic must be at most 40 characters")
 	}
 	mime, data, bytes, err := validateCommunityMedia(input.MediaMime, input.MediaData)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *Store) createCommunityPost(authorID string, input CommunityPostInput) (
 		defer cancel()
 		_, err = s.db.ExecContext(ctx, `INSERT INTO community_posts (id,author_id,is_anonymous,topic_tag,body,media_mime,media_data,media_bytes,created_at) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''),$8,$9)`, post.ID, post.AuthorID, post.IsAnonymous, post.TopicTag, post.Body, post.MediaMime, post.MediaData, post.MediaBytes, post.CreatedAt)
 		if err != nil {
-			return CommunityPost{}, fmt.Errorf("simpan postingan komunitas: %w", err)
+			return CommunityPost{}, fmt.Errorf("save community post: %w", err)
 		}
 		return post, nil
 	}
@@ -200,12 +200,12 @@ func (s *Store) createCommunityPost(authorID string, input CommunityPostInput) (
 }
 
 func (s *Store) createCommunityComment(authorID, postID string, input CommunityCommentInput) (CommunityComment, error) {
-	body, err := normalizeCommunityText(input.Body, 1, 1200, "komentar")
+	body, err := normalizeCommunityText(input.Body, 1, 1200, "comment")
 	if err != nil {
 		return CommunityComment{}, err
 	}
 	if !s.communityPostExists(postID) {
-		return CommunityComment{}, errors.New("postingan tidak ditemukan")
+		return CommunityComment{}, errors.New("post not found")
 	}
 	comment := CommunityComment{ID: newID(), PostID: postID, AuthorID: authorID, Body: body, CreatedAt: time.Now().UTC()}
 	if s.db != nil {
@@ -213,7 +213,7 @@ func (s *Store) createCommunityComment(authorID, postID string, input CommunityC
 		defer cancel()
 		_, err = s.db.ExecContext(ctx, `INSERT INTO community_comments (id,post_id,author_id,body,created_at) VALUES ($1,$2,$3,$4,$5)`, comment.ID, comment.PostID, comment.AuthorID, comment.Body, comment.CreatedAt)
 		if err != nil {
-			return CommunityComment{}, fmt.Errorf("simpan komentar komunitas: %w", err)
+			return CommunityComment{}, fmt.Errorf("save community comment: %w", err)
 		}
 		return comment, nil
 	}
@@ -248,7 +248,7 @@ func (s *Store) communityPostExists(postID string) bool {
 
 func (s *Store) toggleCommunityLike(userID, postID string) (bool, error) {
 	if !s.communityPostExists(postID) {
-		return false, errors.New("postingan tidak ditemukan")
+		return false, errors.New("post not found")
 	}
 	if s.db != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), databaseTimeout)
@@ -279,7 +279,7 @@ func (s *Store) toggleCommunityLike(userID, postID string) (bool, error) {
 
 func (s *Store) recordCommunityShare(userID, postID string) error {
 	if !s.communityPostExists(postID) {
-		return errors.New("postingan tidak ditemukan")
+		return errors.New("post not found")
 	}
 	share := CommunityShare{ID: newID(), PostID: postID, UserID: userID, CreatedAt: time.Now().UTC()}
 	if s.db != nil {
@@ -339,12 +339,12 @@ func (s *Store) communityPostByID(viewerID, postID string) (CommunityPostView, e
 			return post, nil
 		}
 	}
-	return CommunityPostView{}, errors.New("postingan tidak ditemukan")
+	return CommunityPostView{}, errors.New("post not found")
 }
 
 func communityPostView(post CommunityPost, authorName, viewerID string, comments []CommunityComment, reactions []CommunityReaction, shares []CommunityShare, userNames map[string]string) CommunityPostView {
 	if post.IsAnonymous {
-		authorName = "Anonim"
+		authorName = "Anonymous"
 	}
 	view := CommunityPostView{ID: post.ID, AuthorName: authorName, IsAnonymous: post.IsAnonymous, TopicTag: post.TopicTag, Body: post.Body, MediaMime: post.MediaMime, MediaData: post.MediaData, CreatedAt: post.CreatedAt, IsMine: post.AuthorID == viewerID, Comments: []CommunityCommentView{}}
 	for _, reaction := range reactions {
@@ -393,7 +393,7 @@ func (s *Store) communityFeedPostgres(viewerID string) ([]CommunityPostView, err
 			return nil, err
 		}
 		if post.IsAnonymous {
-			post.AuthorName = "Anonim"
+			post.AuthorName = "Anonymous"
 		}
 		post.IsMine = authorID == viewerID
 		post.Comments = []CommunityCommentView{}
@@ -448,7 +448,7 @@ func (s *Store) communityCommentsPostgres(posts []CommunityPostView) ([]Communit
 func (s *Store) communityActivity(psychologistID, clientID string) (CommunityActivity, error) {
 	client, ok := s.findUserByID(clientID)
 	if !ok || normalizedRole(client.Role) != roleUser || client.PsychologistID != psychologistID {
-		return CommunityActivity{}, errors.New("klien tidak di-assign ke psikolog ini")
+		return CommunityActivity{}, errors.New("client is not assigned to this psychologist")
 	}
 	if s.db != nil {
 		return s.communityActivityPostgres(clientID)
@@ -473,7 +473,7 @@ func (s *Store) communityActivity(psychologistID, clientID string) (CommunityAct
 		post, exists := byID[comment.PostID]
 		if !exists { continue }
 		authorName := userNames[post.AuthorID]
-		if post.IsAnonymous { authorName = "Anonim" }
+		if post.IsAnonymous { authorName = "Anonymous" }
 		result.Comments = append(result.Comments, CommunityActivityComment{ID: comment.ID, PostID: post.ID, Body: comment.Body, PostPreview: communityPreview(post.Body), PostAuthorName: authorName, PostIsAnonymous: post.IsAnonymous, CreatedAt: comment.CreatedAt})
 	}
 	sort.Slice(result.Posts, func(i, j int) bool { return result.Posts[i].CreatedAt.After(result.Posts[j].CreatedAt) })
@@ -503,7 +503,7 @@ func (s *Store) communityActivityPostgres(clientID string) (CommunityActivity, e
 		var item CommunityActivityComment
 		if err := comments.Scan(&item.ID, &item.PostID, &item.Body, &item.CreatedAt, &item.PostPreview, &item.PostIsAnonymous, &item.PostAuthorName); err != nil { return result, err }
 		item.PostPreview = communityPreview(item.PostPreview)
-		if item.PostIsAnonymous { item.PostAuthorName = "Anonim" }
+		if item.PostIsAnonymous { item.PostAuthorName = "Anonymous" }
 		result.Comments = append(result.Comments, item)
 	}
 	return result, comments.Err()
@@ -512,9 +512,9 @@ func (s *Store) communityActivityPostgres(clientID string) (CommunityActivity, e
 func handleCommunityFeed(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun user"); return }
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		posts, err := store.communityFeed(user.ID)
-		if err != nil { writeError(w, http.StatusInternalServerError, "gagal memuat komunitas"); return }
+		if err != nil { writeError(w, http.StatusInternalServerError, "failed to load community"); return }
 		writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
 	}
 }
@@ -559,7 +559,7 @@ func (s *Store) psychologistCanViewCommunityPost(psychologistID, postID string) 
 func handleCreateCommunityPost(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun user"); return }
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		var input CommunityPostInput
 		if decodeJSONWithLimit(w, r, &input, 6<<20) != nil { return }
 		post, err := store.createCommunityPost(user.ID, input)
@@ -571,14 +571,14 @@ func handleCreateCommunityPost(store *Store) http.HandlerFunc {
 func handleCommunityPost(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, viewer, ok := authenticatedUser(r, store)
-		if !ok { writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu"); return }
+		if !ok { writeError(w, http.StatusUnauthorized, "please log in first"); return }
 		postID := r.PathValue("id")
 		switch normalizedRole(viewer.Role) {
 		case roleUser:
 		case rolePsychologist:
-			if !store.psychologistCanViewCommunityPost(viewer.ID, postID) { writeError(w, http.StatusForbidden, "aktivitas komunitas ini bukan milik klienmu"); return }
+			if !store.psychologistCanViewCommunityPost(viewer.ID, postID) { writeError(w, http.StatusForbidden, "this community activity does not belong to your client"); return }
 		default:
-			writeError(w, http.StatusForbidden, "akses komunitas tidak tersedia untuk akun ini"); return
+			writeError(w, http.StatusForbidden, "community access is not available for this account"); return
 		}
 		post, err := store.communityPostByID(viewer.ID, postID)
 		if err != nil { writeError(w, http.StatusNotFound, err.Error()); return }
@@ -590,7 +590,7 @@ func handleCommunityPost(store *Store) http.HandlerFunc {
 func handleCreateCommunityComment(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun user"); return }
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		var input CommunityCommentInput
 		if decodeJSON(w, r, &input) != nil { return }
 		comment, err := store.createCommunityComment(user.ID, r.PathValue("id"), input)
@@ -602,7 +602,7 @@ func handleCreateCommunityComment(store *Store) http.HandlerFunc {
 func handleToggleCommunityLike(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun user"); return }
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		liked, err := store.toggleCommunityLike(user.ID, r.PathValue("id"))
 		if err != nil { writeError(w, http.StatusBadRequest, err.Error()); return }
 		writeJSON(w, http.StatusOK, map[string]bool{"liked": liked})
@@ -612,7 +612,7 @@ func handleToggleCommunityLike(store *Store) http.HandlerFunc {
 func handleCommunityShare(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := requireRole(r, store, roleUser)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun user"); return }
+		if !ok { writeError(w, http.StatusForbidden, "user accounts only"); return }
 		if err := store.recordCommunityShare(user.ID, r.PathValue("id")); err != nil { writeError(w, http.StatusBadRequest, err.Error()); return }
 		writeJSON(w, http.StatusCreated, map[string]bool{"recorded": true})
 	}
@@ -621,7 +621,7 @@ func handleCommunityShare(store *Store) http.HandlerFunc {
 func handlePsychologistCommunityActivity(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		psychologist, ok := requireRole(r, store, rolePsychologist)
-		if !ok { writeError(w, http.StatusForbidden, "khusus akun psikolog"); return }
+		if !ok { writeError(w, http.StatusForbidden, "psychologist accounts only"); return }
 		activity, err := store.communityActivity(psychologist.ID, r.PathValue("id"))
 		if err != nil { writeError(w, http.StatusForbidden, err.Error()); return }
 		writeJSON(w, http.StatusOK, activity)
