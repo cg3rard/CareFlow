@@ -9,6 +9,19 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const TOKEN_KEY = 'careflow_session_token';
 const GUEST_KEY = 'careflow_guest_mode';
 
+// Returns today's date ("YYYY-MM-DD") in the Asia/Jakarta timezone, matching
+// the backend's daily-metric/streak day boundary so "once per day" limits
+// line up between client and server.
+function jakartaToday() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
+}
+
 function sessionToVaultEntry(session) {
   return {
     ...session,
@@ -44,9 +57,29 @@ export function FlowProvider({ children }) {
   const [vaultEntries, setVaultEntries] = useState([]);
   const [isVaultLoading, setIsVaultLoading] = useState(false);
   const [vaultSavedNotice, setVaultSavedNotice] = useState(false);
+  const [todayMetric, setTodayMetric] = useState(null);
   const activeMissionIndex = microTasks.findIndex((task) => !task.completed);
 
+  const hasSavedToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return vaultEntries.some((entry) => {
+      const entryDate = entry.createdAt || entry.timestamp;
+      return entryDate && new Date(entryDate).toDateString() === today;
+    });
+  }, [vaultEntries]);
+
+  // The Daily Mood Triage "Yes or No Quiz" (sleep check-in + stress questions)
+  // may only be filled in once per calendar day, mirroring the Daily Pulse rule.
+  const GUEST_QUIZ_KEY = 'careflow_guest_quiz_date';
+
   const token = () => sessionStorage.getItem(TOKEN_KEY);
+
+  const quizLoggedToday = useMemo(() => {
+    const today = jakartaToday();
+    if (token()) return todayMetric?.metricDate === today;
+    return localStorage.getItem(GUEST_QUIZ_KEY) === today;
+  }, [todayMetric]);
+
   const request = async (path, options = {}) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
@@ -77,6 +110,19 @@ export function FlowProvider({ children }) {
       }
     } finally {
       setIsVaultLoading(false);
+    }
+  };
+
+  // Loads today's sleep/stress row (if any) so the Yes/No Quiz can be locked
+  // once it has already been filled in today.
+  const refreshTodayMetric = async () => {
+    if (!token()) return;
+    try {
+      const { metrics } = await request('/metrics/daily');
+      const today = jakartaToday();
+      setTodayMetric((metrics || []).find((metric) => metric.metricDate === today) || null);
+    } catch {
+      // Non-critical: the quiz simply won't show as locked if this fails.
     }
   };
 
@@ -112,6 +158,7 @@ export function FlowProvider({ children }) {
   useEffect(() => {
     if (!isAuthLoading && (authUser || guestAllowed)) {
       void refreshStoredSessions();
+      void refreshTodayMetric();
     }
   }, [isAuthLoading, authUser?.id, guestAllowed]);
 
@@ -175,6 +222,16 @@ export function FlowProvider({ children }) {
         setMicroTasks(result.tasks.slice(0, 3).map((task, index) => ({ ...task, completed: false, xp: [10, 20, 15][index] })));
         setTotalXp(0);
       }
+      if (token()) {
+        try {
+          await request('/declutter', {
+            method: 'POST',
+            body: JSON.stringify({ content: triageData.content, tag: triageData.tag, panicLevel: triageData.panicLevel }),
+          });
+        } catch {
+          // Cognitive de-clutter logging is best-effort; it must not block the triage flow.
+        }
+      }
       setStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
@@ -223,7 +280,33 @@ export function FlowProvider({ children }) {
     return true;
   };
 
+  // Persists today's sleep duration immediately (independent of "Simpan Sesi"),
+  // so the value is safely stored in daily_metrics as soon as the user logs it.
+  const logSleepHours = async (hours) => {
+    if (token()) {
+      const metric = await request('/metrics/daily', { method: 'POST', body: JSON.stringify({ sleepHours: hours }) });
+      setTodayMetric((current) => (current ? { ...current, ...metric } : metric));
+    } else {
+      localStorage.setItem(GUEST_QUIZ_KEY, jakartaToday());
+    }
+  };
+
+  // Persists today's quiz-derived stress indicator immediately once the
+  // Yes/No Quiz is completed.
+  const logQuizStress = async (score, label) => {
+    if (token()) {
+      const metric = await request('/metrics/daily', { method: 'POST', body: JSON.stringify({ stressScore: score, stressLabel: label }) });
+      setTodayMetric((current) => (current ? { ...current, ...metric } : metric));
+    } else {
+      localStorage.setItem(GUEST_QUIZ_KEY, jakartaToday());
+    }
+  };
+
   const saveCurrentSession = async () => {
+    if (hasSavedToday) {
+      setAuthError('Daily Pulse hari ini sudah tersimpan. Coba lagi besok, ya.');
+      return false;
+    }
     const entry = {
       mood: selectedMood,
       mascot: selectedMascot,
@@ -273,9 +356,10 @@ export function FlowProvider({ children }) {
     triageData, setTriageData, processTriage, isProcessingSlice,
     activeSound, toggleSoundscape, masterVolume, handleVolumeChange,
     microTasks, activeMissionIndex, toggleTaskDone, sliceTaskSmaller, resetMicroTasks, addCustomMicroAction, affirmation, totalXp,
-    vaultEntries, isVaultLoading, vaultSavedNotice, saveCurrentSession, clearAllVault,
+    vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, saveCurrentSession, clearAllVault,
+    quizLoggedToday, todayMetric, logSleepHours, logQuizStress,
     resetFlow,
-  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice]);
+  }), [step, selectedMood, selectedMascot, streakDays, streakPopup, authUser, isAuthLoading, guestAllowed, authError, triageData, isProcessingSlice, activeSound, masterVolume, microTasks, affirmation, totalXp, vaultEntries, isVaultLoading, vaultSavedNotice, hasSavedToday, quizLoggedToday, todayMetric]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }

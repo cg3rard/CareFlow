@@ -71,6 +71,7 @@ type User struct {
 	Name         string    `json:"name"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"passwordHash"`
+	DateOfBirth  *string   `json:"dateOfBirth,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
@@ -84,24 +85,53 @@ type SessionRecord struct {
 	TotalXP             int       `json:"totalXp"`
 }
 
+// DailyMetric captures one day's self-reported sleep duration and stress
+// indicator for a user. There is at most one row per user per calendar day
+// (upserted), which is what powers the last-7-day sleep/stress trend.
+type DailyMetric struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId"`
+	MetricDate  string    `json:"metricDate"`
+	SleepHours  *float64  `json:"sleepHours,omitempty"`
+	StressScore *int      `json:"stressScore,omitempty"`
+	StressLabel string    `json:"stressLabel,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// DeclutterEntry stores one cognitive de-clutter (brain-dump) submission.
+type DeclutterEntry struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"userId"`
+	Content        string    `json:"content"`
+	Tag            string    `json:"tag"`
+	PanicLevel     int       `json:"panicLevel"`
+	OverwhelmLevel string    `json:"overwhelmLevel"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
 type persistedData struct {
-	Users    []User          `json:"users"`
-	Sessions []SessionRecord `json:"sessions"`
+	Users            []User           `json:"users"`
+	Sessions         []SessionRecord  `json:"sessions"`
+	DailyMetrics     []DailyMetric    `json:"dailyMetrics"`
+	DeclutterEntries []DeclutterEntry `json:"declutterEntries"`
 }
 
 type Store struct {
-	mu       sync.RWMutex
-	path     string
-	db       *sql.DB
-	users    []User
-	sessions []SessionRecord
-	tokens   map[string]string
+	mu               sync.RWMutex
+	path             string
+	db               *sql.DB
+	users            []User
+	sessions         []SessionRecord
+	dailyMetrics     []DailyMetric
+	declutterEntries []DeclutterEntry
+	tokens           map[string]string
 }
 
 type Credentials struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	DateOfBirth string `json:"dateOfBirth,omitempty"`
 }
 
 type SessionInput struct {
@@ -111,12 +141,29 @@ type SessionInput struct {
 	TotalXP             int    `json:"totalXp"`
 }
 
+// DailyMetricInput is the payload accepted by POST /api/metrics/daily.
+// SleepHours and StressScore are pointers so the client can send just one of
+// the two without overwriting the other for today's row.
+type DailyMetricInput struct {
+	SleepHours  *float64 `json:"sleepHours,omitempty"`
+	StressScore *int     `json:"stressScore,omitempty"`
+	StressLabel string   `json:"stressLabel,omitempty"`
+}
+
+// DeclutterInput is the payload accepted by POST /api/declutter.
+type DeclutterInput struct {
+	Content    string `json:"content"`
+	Tag        string `json:"tag"`
+	PanicLevel int    `json:"panicLevel"`
+}
+
 type ProfileResponse struct {
-	ID         string          `json:"id"`
-	Name       string          `json:"name"`
-	Email      string          `json:"email"`
-	StreakDays int             `json:"streakDays"`
-	Sessions   []SessionRecord `json:"sessions,omitempty"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Email       string          `json:"email"`
+	DateOfBirth *string         `json:"dateOfBirth,omitempty"`
+	StreakDays  int             `json:"streakDays"`
+	Sessions    []SessionRecord `json:"sessions,omitempty"`
 }
 
 func main() {
@@ -159,6 +206,10 @@ func main() {
 	mux.HandleFunc("GET /api/auth/me", handleMe(store))
 	mux.HandleFunc("POST /api/sessions", handleCreateSession(store))
 	mux.HandleFunc("GET /api/sessions", handleListSessions(store))
+	mux.HandleFunc("POST /api/metrics/daily", handleUpsertDailyMetric(store))
+	mux.HandleFunc("GET /api/metrics/daily", handleListDailyMetrics(store))
+	mux.HandleFunc("POST /api/declutter", handleCreateDeclutterEntry(store))
+	mux.HandleFunc("GET /api/declutter", handleListDeclutterEntries(store))
 
 	serverAddr := ":" + cfg.Port
 	log.Printf("[Careflow Core] listening on %s (%s)", serverAddr, cfg.AppEnv)
@@ -191,6 +242,8 @@ func newStore(path string) (*Store, error) {
 	}
 	store.users = data.Users
 	store.sessions = data.Sessions
+	store.dailyMetrics = data.DailyMetrics
+	store.declutterEntries = data.DeclutterEntries
 	return store, nil
 }
 
@@ -198,7 +251,7 @@ func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return err
 	}
-	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions}, "", "  ")
+	contents, err := json.MarshalIndent(persistedData{Users: s.users, Sessions: s.sessions, DailyMetrics: s.dailyMetrics, DeclutterEntries: s.declutterEntries}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -207,6 +260,28 @@ func (s *Store) saveLocked() error {
 		return err
 	}
 	return os.Rename(tmpPath, s.path)
+}
+
+// parseDateOfBirth validates an optional "YYYY-MM-DD" date string, rejecting
+// dates in the future or implausibly far in the past.
+func parseDateOfBirth(raw string) (*string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", trimmed)
+	if err != nil {
+		return nil, errors.New("tanggal lahir tidak valid (gunakan format YYYY-MM-DD)")
+	}
+	now := time.Now().UTC()
+	if parsed.After(now) {
+		return nil, errors.New("tanggal lahir tidak boleh di masa depan")
+	}
+	if parsed.Before(now.AddDate(-150, 0, 0)) {
+		return nil, errors.New("tanggal lahir tidak valid")
+	}
+	normalized := parsed.Format("2006-01-02")
+	return &normalized, nil
 }
 
 func (s *Store) createUser(input Credentials) (User, string, error) {
@@ -221,12 +296,16 @@ func (s *Store) createUser(input Credentials) (User, string, error) {
 	if len(input.Password) < 8 || len(input.Password) > 128 {
 		return User{}, "", errors.New("kata sandi harus terdiri dari 8 sampai 128 karakter")
 	}
+	dateOfBirth, err := parseDateOfBirth(input.DateOfBirth)
+	if err != nil {
+		return User{}, "", err
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return User{}, "", err
 	}
 	if s.db != nil {
-		return s.createUserPostgres(name, email, string(hash))
+		return s.createUserPostgres(name, email, string(hash), dateOfBirth)
 	}
 
 	s.mu.Lock()
@@ -236,7 +315,7 @@ func (s *Store) createUser(input Credentials) (User, string, error) {
 			return User{}, "", errors.New("email sudah terdaftar")
 		}
 	}
-	user := User{ID: newID(), Name: name, Email: email, PasswordHash: string(hash), CreatedAt: time.Now().UTC()}
+	user := User{ID: newID(), Name: name, Email: email, PasswordHash: string(hash), DateOfBirth: dateOfBirth, CreatedAt: time.Now().UTC()}
 	s.users = append(s.users, user)
 	if err := s.saveLocked(); err != nil {
 		return User{}, "", err
@@ -336,6 +415,148 @@ func (s *Store) sessionsForUser(userID string) []SessionRecord {
 	for _, record := range s.sessions {
 		if record.UserID == userID {
 			result = append(result, record)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
+	return result
+}
+
+// jakartaToday returns today's calendar date string ("YYYY-MM-DD") in the
+// Asia/Jakarta timezone, matching the streak calculation convention.
+func jakartaToday() string {
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		location = time.Local
+	}
+	return time.Now().In(location).Format("2006-01-02")
+}
+
+// upsertDailyMetric records (or updates) today's sleep/stress entry for a
+// user. Passing a nil field leaves that column untouched on update.
+func (s *Store) upsertDailyMetric(userID string, input DailyMetricInput) (DailyMetric, error) {
+	if input.SleepHours != nil && (*input.SleepHours < 0 || *input.SleepHours > 24) {
+		return DailyMetric{}, errors.New("durasi tidur tidak valid")
+	}
+	if input.StressScore != nil && (*input.StressScore < 0 || *input.StressScore > 100) {
+		return DailyMetric{}, errors.New("skor stres tidak valid")
+	}
+	stressLabel := strings.TrimSpace(input.StressLabel)
+	if len(stressLabel) > 40 {
+		stressLabel = stressLabel[:40]
+	}
+	today := jakartaToday()
+	if s.db != nil {
+		return s.upsertDailyMetricPostgres(userID, today, input.SleepHours, input.StressScore, stressLabel)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, metric := range s.dailyMetrics {
+		if metric.UserID != userID || metric.MetricDate != today {
+			continue
+		}
+		if input.SleepHours != nil {
+			metric.SleepHours = input.SleepHours
+		}
+		if input.StressScore != nil {
+			metric.StressScore = input.StressScore
+		}
+		if stressLabel != "" {
+			metric.StressLabel = stressLabel
+		}
+		metric.UpdatedAt = time.Now().UTC()
+		s.dailyMetrics[i] = metric
+		if err := s.saveLocked(); err != nil {
+			return DailyMetric{}, err
+		}
+		return metric, nil
+	}
+	metric := DailyMetric{ID: newID(), UserID: userID, MetricDate: today, SleepHours: input.SleepHours, StressScore: input.StressScore, StressLabel: stressLabel, UpdatedAt: time.Now().UTC()}
+	s.dailyMetrics = append(s.dailyMetrics, metric)
+	if err := s.saveLocked(); err != nil {
+		return DailyMetric{}, err
+	}
+	return metric, nil
+}
+
+// dailyMetricsForUserLastWeek returns up to the last 7 calendar days of
+// sleep/stress metrics for a user, newest first.
+func (s *Store) dailyMetricsForUserLastWeek(userID string) []DailyMetric {
+	if s.db != nil {
+		result, err := s.dailyMetricsForUserLastWeekPostgres(userID)
+		if err != nil {
+			log.Printf("[Careflow Core] read PostgreSQL daily metrics: %v", err)
+			return []DailyMetric{}
+		}
+		return result
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cutoff := time.Now().AddDate(0, 0, -6).Format("2006-01-02")
+	result := make([]DailyMetric, 0)
+	for _, metric := range s.dailyMetrics {
+		if metric.UserID == userID && metric.MetricDate >= cutoff {
+			result = append(result, metric)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].MetricDate > result[j].MetricDate })
+	return result
+}
+
+// addDeclutterEntry stores one cognitive de-clutter (brain-dump) submission.
+func (s *Store) addDeclutterEntry(userID string, input DeclutterInput) (DeclutterEntry, error) {
+	content := strings.TrimSpace(input.Content)
+	tag := strings.TrimSpace(input.Tag)
+	if content == "" {
+		return DeclutterEntry{}, errors.New("isi catatan tidak boleh kosong")
+	}
+	if len(content) > 4000 {
+		return DeclutterEntry{}, errors.New("isi catatan terlalu panjang")
+	}
+	if tag == "" {
+		tag = "Umum"
+	}
+	if len(tag) > 80 {
+		return DeclutterEntry{}, errors.New("tag tidak valid")
+	}
+	if input.PanicLevel < 1 || input.PanicLevel > 5 {
+		return DeclutterEntry{}, errors.New("tingkat panik tidak valid")
+	}
+	charLength := len(content)
+	overwhelmLevel := "Ringan"
+	if charLength > 120 {
+		overwhelmLevel = "Tinggi"
+	} else if charLength > 40 {
+		overwhelmLevel = "Sedang"
+	}
+	entry := DeclutterEntry{ID: newID(), UserID: userID, Content: content, Tag: tag, PanicLevel: input.PanicLevel, OverwhelmLevel: overwhelmLevel, CreatedAt: time.Now().UTC()}
+	if s.db != nil {
+		return s.addDeclutterEntryPostgres(entry)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.declutterEntries = append(s.declutterEntries, entry)
+	if err := s.saveLocked(); err != nil {
+		return DeclutterEntry{}, err
+	}
+	return entry, nil
+}
+
+func (s *Store) declutterEntriesForUser(userID string) []DeclutterEntry {
+	if s.db != nil {
+		result, err := s.declutterEntriesForUserPostgres(userID)
+		if err != nil {
+			log.Printf("[Careflow Core] read PostgreSQL declutter entries: %v", err)
+			return []DeclutterEntry{}
+		}
+		return result
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]DeclutterEntry, 0)
+	for _, entry := range s.declutterEntries {
+		if entry.UserID == userID {
+			result = append(result, entry)
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
@@ -445,6 +666,68 @@ func handleListSessions(store *Store) http.HandlerFunc {
 	}
 }
 
+func handleUpsertDailyMetric(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		var input DailyMetricInput
+		if err := decodeJSON(w, r, &input); err != nil {
+			return
+		}
+		metric, err := store.upsertDailyMetric(user.ID, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, metric)
+	}
+}
+
+func handleListDailyMetrics(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"metrics": store.dailyMetricsForUserLastWeek(user.ID)})
+	}
+}
+
+func handleCreateDeclutterEntry(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		var input DeclutterInput
+		if err := decodeJSON(w, r, &input); err != nil {
+			return
+		}
+		entry, err := store.addDeclutterEntry(user.ID, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, entry)
+	}
+}
+
+func handleListDeclutterEntries(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, user, ok := authenticatedUser(r, store)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "silakan masuk terlebih dahulu")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"entries": store.declutterEntriesForUser(user.ID)})
+	}
+}
+
 func authResponse(user User, token string, streak int) map[string]any {
 	profile := profileResponse(user, nil, false)
 	profile.StreakDays = streak
@@ -452,7 +735,7 @@ func authResponse(user User, token string, streak int) map[string]any {
 }
 
 func profileResponse(user User, records []SessionRecord, includeSessions bool) ProfileResponse {
-	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, StreakDays: calculateStreak(records)}
+	response := ProfileResponse{ID: user.ID, Name: user.Name, Email: user.Email, DateOfBirth: user.DateOfBirth, StreakDays: calculateStreak(records)}
 	if includeSessions {
 		response.Sessions = records
 	}

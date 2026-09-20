@@ -5,7 +5,7 @@ export default function LoginPage() {
   const { authenticate, continueAsGuest, authError, setAuthError } = useFlow();
   const [mode, setMode] = useState('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', dateOfBirth: '' });
 
   const submit = async (event) => {
     event.preventDefault();
@@ -60,6 +60,11 @@ export default function LoginPage() {
           {mode === 'register' && (
             <label className="block text-xs font-bold text-on-surface">Nama
               <input required minLength="2" maxLength="80" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5 w-full rounded-xl bg-surface-container px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/40" placeholder="Nama panggilanmu" />
+            </label>
+          )}
+          {mode === 'register' && (
+            <label className="block text-xs font-bold text-on-surface">Tanggal lahir
+              <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.dateOfBirth} onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })} className="mt-1.5 w-full rounded-xl bg-surface-container px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
             </label>
           )}
           <label className="block text-xs font-bold text-on-surface">Email

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
 import { audioEngine } from '../../utils/audioEngine';
 import { getDailyQuizQuestions, estimateStressFromAnswers, stressLevelLabel } from '../../utils/dailyQuiz';
@@ -19,6 +19,11 @@ export default function GentleTriage() {
     authUser,
     saveCurrentSession,
     vaultSavedNotice,
+    hasSavedToday,
+    quizLoggedToday,
+    todayMetric,
+    logSleepHours,
+    logQuizStress,
     triageData,
     setTriageData,
     processTriage,
@@ -42,28 +47,53 @@ export default function GentleTriage() {
   const [sleepHours, setSleepHours] = useState(null);
   const [sleepHoursDraft, setSleepHoursDraft] = useState('7');
   const [sleepLogged, setSleepLogged] = useState(false);
+  const [metricLogError, setMetricLogError] = useState('');
+
+  // The quiz (sleep check-in + Yes/No questions) is limited to one
+  // completion per calendar day. If today's entry already exists on the
+  // server (or, for guests, in localStorage), lock the quiz immediately.
+  useEffect(() => {
+    if (quizLoggedToday) {
+      setSleepLogged(true);
+      setIsQuizCompleteModalOpen(false);
+    }
+  }, [quizLoggedToday]);
 
   const handleLogSleepHours = () => {
+    if (quizLoggedToday || isQuizAnswerConfirming) return;
     const parsed = Number.parseFloat(sleepHoursDraft);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 12 || isQuizAnswerConfirming) return;
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 12) return;
 
     setQuizConfirmationMessage('Durasi tidur tersimpan');
     setIsQuizAnswerConfirming(true);
+    setMetricLogError('');
 
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       setSleepHours(parsed);
       setSleepLogged(true);
       setIsQuizAnswerConfirming(false);
+      try {
+        await logSleepHours(parsed);
+      } catch (error) {
+        setMetricLogError(error.message || 'Durasi tidur gagal tersimpan ke server.');
+      }
     }, 800);
   };
 
   const handleQuizAnswer = (ans) => {
-    if (isQuizAnswerConfirming || quizCompleted) return;
+    if (isQuizAnswerConfirming || quizCompleted || quizLoggedToday) return;
 
     audioEngine.playSuccessEffect();
     const isLastQuestion = quizIndex === quizQuestions.length - 1;
     if (isLastQuestion) {
-      setQuizAnswers((currentAnswers) => [...currentAnswers, ans]);
+      setQuizAnswers((currentAnswers) => {
+        const finalAnswers = [...currentAnswers, ans];
+        const finalScore = estimateStressFromAnswers(finalAnswers, quizQuestions);
+        logQuizStress(finalScore, stressLevelLabel(finalScore)?.label).catch((error) => {
+          setMetricLogError(error.message || 'Indikator stres gagal tersimpan ke server.');
+        });
+        return finalAnswers;
+      });
       setIsQuizCompleteModalOpen(true);
       return;
     }
@@ -79,6 +109,7 @@ export default function GentleTriage() {
   };
 
   const resetQuiz = () => {
+    if (quizLoggedToday) return;
     setQuizIndex(0);
     setQuizAnswers([]);
     setQuizConfirmationMessage('');
@@ -90,6 +121,7 @@ export default function GentleTriage() {
   };
 
   const resetYesNoQuiz = () => {
+    if (quizLoggedToday) return;
     setQuizIndex(0);
     setQuizAnswers([]);
     setQuizConfirmationMessage('');
@@ -102,13 +134,21 @@ export default function GentleTriage() {
     setStep(2);
   };
 
-  const quizCompleted = quizAnswers.length === quizQuestions.length;
+  const quizCompleted = quizAnswers.length === quizQuestions.length || quizLoggedToday;
   const lastQuizAnswer = quizAnswers[quizAnswers.length - 1];
-  const stressScore = quizCompleted ? estimateStressFromAnswers(quizAnswers, quizQuestions) : null;
+  const displaySleepHours = sleepLogged ? sleepHours : todayMetric?.sleepHours ?? null;
+  const displayStressScore = quizAnswers.length === quizQuestions.length
+    ? estimateStressFromAnswers(quizAnswers, quizQuestions)
+    : todayMetric?.stressScore ?? null;
+  const stressScore = displayStressScore;
   const stressInfo = stressLevelLabel(stressScore);
 
   const handleSaveVibe = async () => {
-    await saveCurrentSession();
+    await saveCurrentSession({
+      sleepHours: sleepLogged ? sleepHours : null,
+      stressScore: quizAnswers.length === quizQuestions.length ? stressScore : null,
+      stressLabel: quizCompleted ? stressInfo?.label : undefined,
+    });
   };
 
   const handleZenBell = () => {
@@ -237,7 +277,7 @@ export default function GentleTriage() {
 
   const activeMascotObj = mascots.find((m) => m.id === selectedMascot) || mascots[0];
   const isGuest = !authUser;
-  const metricStatus = isGuest ? 'Mode tamu' : 'Sensor belum terhubung';
+  const metricStatus = isGuest ? 'Mode tamu' : 'Data self-report';
 
   // Cognitive Overwhelm Meter calculation
   const charLength = triageData.content.length;
@@ -485,9 +525,15 @@ export default function GentleTriage() {
               <button
                 type="button"
                 onClick={handleSaveVibe}
-                className="bg-inverse-surface text-inverse-on-surface px-5 py-2.5 rounded-full text-xs font-bold shadow-[0_2px_0_#121214] hover:opacity-90 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                disabled={hasSavedToday}
+                title={hasSavedToday ? 'Daily Pulse hari ini sudah tersimpan. Coba lagi besok.' : undefined}
+                className={`px-5 py-2.5 rounded-full text-xs font-bold shadow-[0_2px_0_#121214] transition-all ${
+                  hasSavedToday
+                    ? 'bg-surface-container text-on-surface-variant cursor-not-allowed opacity-70'
+                    : 'bg-inverse-surface text-inverse-on-surface hover:opacity-90 active:translate-y-0.5 active:shadow-none cursor-pointer'
+                }`}
               >
-                {vaultSavedNotice ? 'Tersimpan! ✨' : 'Simpan Sesi'}
+                {hasSavedToday ? 'Sudah Diisi Hari Ini ✅' : vaultSavedNotice ? 'Tersimpan! ✨' : 'Simpan Sesi'}
               </button>
             </div>
           </div>
@@ -507,7 +553,7 @@ export default function GentleTriage() {
             </h2>
           </div>
           <span className="text-xs text-on-surface-variant font-medium text-right max-w-[220px] sm:max-w-none">
-            {metricStatus} • data self-report, sensor wearable belum terhubung
+            {metricStatus} • diisi manual olehmu setiap hari
           </span>
         </div>
 
@@ -524,7 +570,7 @@ export default function GentleTriage() {
                     <span className="text-xs uppercase tracking-wider font-bold">Sleep Duration</span>
                   </div>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-surface-container-lowest/80 text-on-surface font-bold shadow-xs">
-                    {sleepLogged ? 'Self-report' : 'Belum diisi'}
+                    {displaySleepHours != null ? 'Self-report' : 'Belum diisi'}
                   </span>
                 </div>
 
@@ -543,15 +589,15 @@ export default function GentleTriage() {
                 <div className="flex items-baseline justify-between">
                   <div>
                     <span className="text-3xl sm:text-4xl font-bold tracking-tight">
-                      {sleepLogged ? sleepHours : '—'}
+                      {displaySleepHours != null ? displaySleepHours : '—'}
                     </span>
-                    {sleepLogged && <span className="text-sm font-bold ml-1">jam</span>}
+                    {displaySleepHours != null && <span className="text-sm font-bold ml-1">jam</span>}
                   </div>
                   <span className="text-xs font-bold text-on-secondary-container">
-                    {sleepLogged
-                      ? sleepHours < 6
+                    {displaySleepHours != null
+                      ? displaySleepHours < 6
                         ? 'Kurang dari ideal'
-                        : sleepHours <= 9
+                        : displaySleepHours <= 9
                           ? 'Dalam rentang sehat'
                           : 'Lebih dari biasanya'
                       : 'Isi di Yes/No Quiz →'}
@@ -602,9 +648,9 @@ export default function GentleTriage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs px-3 py-0.5 rounded-full bg-surface-container-lowest/60 text-on-primary-container font-bold shadow-xs">
-                    {sleepLogged ? `Question ${quizIndex + 1} / ${quizQuestions.length}` : 'Sleep Check-in'}
+                    {quizLoggedToday ? 'Selesai hari ini' : sleepLogged ? `Question ${quizIndex + 1} / ${quizQuestions.length}` : 'Sleep Check-in'}
                   </span>
-                  {(quizIndex > 0 || sleepLogged) && (
+                  {!quizLoggedToday && (quizIndex > 0 || sleepLogged) && (
                     <button
                       onClick={resetQuiz}
                       className="text-[10px] underline text-on-primary-container hover:opacity-80"
@@ -621,14 +667,32 @@ export default function GentleTriage() {
                 <div
                   className="bg-[#121214] h-full transition-all duration-300"
                   style={{
-                    width: sleepLogged
-                      ? `${((quizIndex + 2) / (quizQuestions.length + 1)) * 100}%`
-                      : `${(1 / (quizQuestions.length + 1)) * 100}%`,
+                    width: quizLoggedToday
+                      ? '100%'
+                      : sleepLogged
+                        ? `${((quizIndex + 2) / (quizQuestions.length + 1)) * 100}%`
+                        : `${(1 / (quizQuestions.length + 1)) * 100}%`,
                   }}
                 />
               </div>
 
-              {!sleepLogged ? (
+              {metricLogError && (
+                <p role="alert" className="mt-3 text-xs font-semibold text-red-700 bg-red-50 rounded-xl px-3 py-2">
+                  {metricLogError}
+                </p>
+              )}
+
+              {quizLoggedToday ? (
+                <div className="my-6 flex flex-col items-center text-center gap-2">
+                  <span className="material-symbols-outlined text-4xl text-on-primary-container">task_alt</span>
+                  <h3 className="text-lg sm:text-xl font-bold text-on-primary-container tracking-tight">
+                    Check-in hari ini sudah diisi
+                  </h3>
+                  <p className="text-sm text-on-primary-container/80 font-medium max-w-xs">
+                    Yes/No Quiz hanya bisa diisi sekali sehari. Sampai jumpa besok untuk check-in berikutnya!
+                  </p>
+                </div>
+              ) : !sleepLogged ? (
                 <>
                   <div className="my-6">
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-surface-container-lowest/60 px-2 py-0.5 rounded-md inline-block mb-1">
