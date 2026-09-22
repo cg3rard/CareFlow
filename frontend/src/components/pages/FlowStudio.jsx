@@ -30,6 +30,7 @@ export default function FlowStudio() {
   const [breathCycle, setBreathCycle] = useState(0);
   const [isBreathingActive, setIsBreathingActive] = useState(false);
   const [floatingXpText, setFloatingXpText] = useState('');
+  const [breakdownPulseTaskId, setBreakdownPulseTaskId] = useState(null);
   const TOTAL_BREATH_CYCLES = 8;
 
   const XP_PER_LEVEL = 100;
@@ -252,6 +253,12 @@ export default function FlowStudio() {
       setFloatingXpText(`+${task.xp || 15} Calm XP!`);
       setTimeout(() => setFloatingXpText(''), 1500);
     }
+  };
+
+  const handleBreakdownClick = (taskId) => {
+    sliceTaskSmaller(taskId);
+    setBreakdownPulseTaskId(taskId);
+    setTimeout(() => setBreakdownPulseTaskId((current) => (current === taskId ? null : current)), 1200);
   };
 
   const handleCustomMicroAction = () => {
@@ -853,9 +860,13 @@ export default function FlowStudio() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => sliceTaskSmaller(microTasks[1].id)}
+                      onClick={() => handleBreakdownClick(microTasks[1].id)}
                       disabled={isQuestLocked || activeMissionIndex !== 1}
-                      className="px-4 py-2.5 rounded-full bg-surface-container-lowest text-on-surface text-xs font-bold shadow-[0_3px_0_#121214] hover:bg-surface-container active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 bg-gradient-to-r from-tertiary to-secondary text-on-tertiary hover:brightness-110 hover:scale-105 active:translate-y-0.5 active:shadow-none ${
+                        breakdownPulseTaskId === microTasks[1].id
+                          ? 'ring-4 ring-tertiary/60 scale-105 shadow-[0_0_20px_6px_rgba(108,85,127,0.85),0_3px_0_#121214]'
+                          : 'animate-breakdown-glow'
+                      }`}
                     >
                       <span>Break It Down More</span>
                       <span className="text-sm">🤏</span>

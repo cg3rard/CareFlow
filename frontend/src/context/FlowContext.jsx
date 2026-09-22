@@ -392,14 +392,26 @@ export function FlowProvider({ children }) {
       if (task.id !== taskId) return task;
       const sliceLevel = (task.sliceLevel || 0) + 1;
       const baseAction = task.originalAction || task.action;
+      const preGeneratedLevel = task.breakdownLevels?.[sliceLevel - 1];
+
+      if (preGeneratedLevel) {
+        return {
+          ...task,
+          originalAction: baseAction,
+          sliceLevel,
+          action: preGeneratedLevel.action,
+          duration: '1 minute',
+          guidance: preGeneratedLevel.guidance,
+        };
+      }
+
       const simplified = simplifyAction(baseAction);
       const guidance = SLICE_LEVEL_GUIDANCE[Math.min(sliceLevel - 1, SLICE_LEVEL_GUIDANCE.length - 1)];
-
       return {
         ...task,
         originalAction: baseAction,
         sliceLevel,
-        action: sliceLevel === 1 ? `Just start: ${simplified}` : `Even smaller: ${simplified}`,
+        action: sliceLevel === 1 ? simplified : `Even smaller: ${simplified}`,
         duration: '1 minute',
         guidance,
       };

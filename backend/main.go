@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -41,11 +42,17 @@ type SliceRequest struct {
 	PanicLevel int    `json:"panicLevel"`
 }
 
-type MicroTask struct {
-	ID       string `json:"id"`
+type BreakdownStep struct {
 	Action   string `json:"action"`
-	Duration string `json:"duration"`
 	Guidance string `json:"guidance"`
+}
+
+type MicroTask struct {
+	ID              string          `json:"id"`
+	Action          string          `json:"action"`
+	Duration        string          `json:"duration"`
+	Guidance        string          `json:"guidance"`
+	BreakdownLevels []BreakdownStep `json:"breakdownLevels,omitempty"`
 }
 
 type SliceResponse struct {
@@ -681,8 +688,18 @@ func calculateStreak(records []SessionRecord) int {
 	for _, record := range records {
 		days[record.CreatedAt.In(location).Format("2006-01-02")] = struct{}{}
 	}
+
+	today := time.Now().In(location)
+	startDate := today
+	// If today's Daily Pulse hasn't been submitted yet, the streak built up
+	// through yesterday is still active — only start counting from yesterday
+	// so a fresh day doesn't reset the streak to 0 before the user submits.
+	if _, submittedToday := days[today.Format("2006-01-02")]; !submittedToday {
+		startDate = today.AddDate(0, 0, -1)
+	}
+
 	streak := 0
-	for date := time.Now().In(location); ; date = date.AddDate(0, 0, -1) {
+	for date := startDate; ; date = date.AddDate(0, 0, -1) {
 		if _, exists := days[date.Format("2006-01-02")]; !exists {
 			break
 		}
@@ -956,20 +973,31 @@ func handleTaskSlice(cfg Config) http.HandlerFunc {
 }
 
 func callGeminiSlice(ctx context.Context, apiKey, content, tag string, panicLevel int) (*SliceResponse, error) {
-	prompt := fmt.Sprintf(`You are a relaxed, supportive friend, not a formal therapist. Create EXACTLY three safe, micro CBT steps to ease overthinking, in warm, friendly, everyday English.
+	prompt := fmt.Sprintf(`You are a warm, emotionally intelligent CBT-informed coach helping someone who feels overwhelmed and stuck in task paralysis. You are not a formal therapist, but you understand behavioral activation and cognitive-behavioral micro-stepping well enough to give genuinely useful, specific advice — not generic filler.
 
-Important rules:
-- "action" must be VERY SHORT: max 5-7 words, like an action title, not a full sentence. Example: "Take 3 slow breaths" or "Write just 1 sentence for now".
-- "guidance" max 1 short, casual sentence, no psychology jargon.
-- "affirmation" 1 short, warm, friendly sentence.
-- Each step must be doable in under 5 minutes.
+Read the person's actual situation below carefully and tailor every step to the SPECIFIC content, category, and panic level they described. Do not give generic advice that could apply to any task — reference concrete details from what they wrote (e.g. the subject, the deadline, the specific fear) wherever possible.
+
+Design EXACTLY three progressive micro-steps that break the overwhelming task into an easing sequence:
+- Step 1: the lowest-friction possible entry action, meant purely to break the freeze (near-zero effort, physically or mentally trivial).
+- Step 2: a slightly more substantive action that builds direct momentum toward the real task, specific to their situation.
+- Step 3: a concrete action that produces one tangible, visible piece of progress on the actual burden they described.
+
+For EVERY one of the three steps, also prepare exactly 3 "breakdownLevels" — a progressive series of even smaller, more concrete fallback versions of that same step, to use if the person still finds it too big and taps "Break It Down More". Level 1 should feel meaningfully smaller than the original step, level 2 smaller than level 1, and level 3 the smallest physically possible entry action (e.g. touching one object, writing one word, opening one file). Each level must stay specific to their real content, not generic, and must not repeat the same wording as the original step or the other levels.
+
+Formatting rules:
+- "action": a short imperative phrase, max 9 words, concrete and specific to their situation (not generic like "start working"). Example: "Open the essay and title the intro" rather than "Start writing".
+- "guidance": ONE well-crafted sentence (roughly 12-22 words) that gives a real reason WHY this micro-step works psychologically for their specific situation — e.g. how it lowers activation energy, interrupts avoidance, or builds momentum. Avoid clinical jargon, but make the reasoning substantive and specific, not a vague platitude.
+- Each "breakdownLevels" entry follows the same "action"/"guidance" format but shorter and progressively tinier, max 8 words for action and roughly 12-20 words for guidance.
+- "affirmation": ONE warm, specific sentence (roughly 15-25 words) that acknowledges their specific burden and panic level, and reframes the load as manageable through small steps. Make it feel personally written for their situation, not a generic quote.
+- Calibrate tone and pacing to the panic level: higher panic levels (4-5) should get calmer, slower, more grounding language and even smaller first steps; lower panic levels (1-2) can be slightly more energetic and momentum-focused.
+- Each step must be realistically doable in under 5 minutes.
 - DO NOT use emoji or any non-text symbols.
-- DO NOT ramble or give long lectures.
+- DO NOT be generic — every field must clearly reflect the specific content and category given below.
 
-Return ONLY this JSON: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 minutes","guidance":"..."}]}.
+Return ONLY this JSON, no markdown fences, no extra commentary: {"affirmation":"...","tasks":[{"id":"task-1","action":"...","duration":"2 minutes","guidance":"...","breakdownLevels":[{"action":"...","guidance":"..."},{"action":"...","guidance":"..."},{"action":"...","guidance":"..."}]},{"id":"task-2","action":"...","duration":"3 minutes","guidance":"...","breakdownLevels":[{"action":"...","guidance":"..."},{"action":"...","guidance":"..."},{"action":"...","guidance":"..."}]},{"id":"task-3","action":"...","duration":"4 minutes","guidance":"...","breakdownLevels":[{"action":"...","guidance":"..."},{"action":"...","guidance":"..."},{"action":"...","guidance":"..."}]}]}.
 
-Burden: %q. Category: %q. Panic level: %d/5.`, content, tag, panicLevel)
-	payload, err := json.Marshal(map[string]any{"contents": []map[string]any{{"parts": []map[string]string{{"text": prompt}}}}, "generationConfig": map[string]any{"temperature": 0.4, "responseMimeType": "application/json"}})
+Their situation — Burden: %q. Category: %q. Panic level: %d/5.`, content, tag, panicLevel)
+	payload, err := json.Marshal(map[string]any{"contents": []map[string]any{{"parts": []map[string]string{{"text": prompt}}}}, "generationConfig": map[string]any{"temperature": 0.65, "responseMimeType": "application/json"}})
 	if err != nil {
 		return nil, err
 	}
@@ -1036,9 +1064,27 @@ func generateHeuristicSlice(content, tag string, panicLevel int) SliceResponse {
 
 func taskSet(first, second, third string) []MicroTask {
 	return []MicroTask{
-		{ID: "task-1", Action: first, Duration: "2 minutes", Guidance: "Just start; it doesn't have to be neat yet."},
-		{ID: "task-2", Action: second, Duration: "3 minutes", Guidance: "Focus on one small thing without chasing perfection."},
-		{ID: "task-3", Action: third, Duration: "4 minutes", Guidance: "Finishing one step is enough to build momentum."},
+		{ID: "task-1", Action: first, Duration: "2 minutes", Guidance: "Just start; it doesn't have to be neat yet.", BreakdownLevels: heuristicBreakdownLevels(first)},
+		{ID: "task-2", Action: second, Duration: "3 minutes", Guidance: "Focus on one small thing without chasing perfection.", BreakdownLevels: heuristicBreakdownLevels(second)},
+		{ID: "task-3", Action: third, Duration: "4 minutes", Guidance: "Finishing one step is enough to build momentum.", BreakdownLevels: heuristicBreakdownLevels(third)},
+	}
+}
+
+func heuristicBreakdownLevels(action string) []BreakdownStep {
+	withoutQuantity := strings.TrimSpace(regexp.MustCompile(`\b\d+\b\s*`).ReplaceAllString(action, ""))
+	firstClause := strings.TrimSpace(regexp.MustCompile(`\s+and\s+|,|\.`).Split(withoutQuantity, 2)[0])
+	if firstClause == "" {
+		firstClause = withoutQuantity
+	}
+	words := strings.Fields(firstClause)
+	shortPhrase := firstClause
+	if len(words) > 4 {
+		shortPhrase = strings.Join(words[:4], " ")
+	}
+	return []BreakdownStep{
+		{Action: shortPhrase, Guidance: "Focus only on the first sixty seconds. You don't need to think about what comes next yet."},
+		{Action: fmt.Sprintf("Even smaller: %s", strings.ToLower(shortPhrase)), Guidance: "Even twenty seconds of this counts as a win. Just touch the task, nothing more."},
+		{Action: "Just touch the task for ten seconds", Guidance: "This is the smallest version possible. If you do only this, you've already broken the freeze."},
 	}
 }
 

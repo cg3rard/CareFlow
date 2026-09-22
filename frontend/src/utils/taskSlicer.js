@@ -36,6 +36,21 @@ export async function sliceTaskWithHybridFallback(content, tag, panicLevel) {
   return getClientHeuristicSlice(content, tag, panicLevel);
 }
 
+function buildBreakdownLevels(action) {
+  const withoutQuantity = action.replace(/\b\d+\b\s*/, '');
+  const firstClauseMatch = withoutQuantity.split(/\s+and\s+|,|\./i)[0].trim();
+  const base = firstClauseMatch || withoutQuantity.trim();
+  return [
+    { action: base, guidance: 'Focus only on the first sixty seconds. You don\'t need to think about what comes next yet.' },
+    { action: `Even smaller: ${base}`, guidance: 'Even twenty seconds of this counts as a win. Just touch the task, nothing more.' },
+    { action: `Smallest step: touch ${base}`, guidance: 'This is the smallest version possible. If you do only this, you\'ve already broken the freeze.' },
+  ];
+}
+
+function withBreakdownLevels(tasks) {
+  return tasks.map((task) => ({ ...task, breakdownLevels: buildBreakdownLevels(task.action) }));
+}
+
 function getClientHeuristicSlice(content = '', tag = 'Deadline', panicLevel = 3) {
   const text = content.toLowerCase();
   const category = tag.toLowerCase();
@@ -137,6 +152,6 @@ function getClientHeuristicSlice(content = '', tag = 'Deadline', panicLevel = 3)
     source: 'client-heuristic-engine',
     affirmation,
     tag,
-    tasks,
+    tasks: withBreakdownLevels(tasks),
   };
 }

@@ -192,6 +192,19 @@
   }
 }
 
+@keyframes breakdownGlow {
+  0%, 100% {
+    box-shadow: 0 0 6px 0 rgba(108, 85, 127, 0.35), 0 3px 0 #121214;
+  }
+  50% {
+    box-shadow: 0 0 16px 4px rgba(108, 85, 127, 0.75), 0 3px 0 #121214;
+  }
+}
+
+.animate-breakdown-glow {
+  animation: breakdownGlow 2.2s ease-in-out infinite;
+}
+
 .animate-streak-ring-pulse {
   animation: streakRingPulse 1.6s ease-in-out infinite;
 }

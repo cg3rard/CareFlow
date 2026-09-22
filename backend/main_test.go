@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestAccountSessionFlow(t *testing.T) {
@@ -61,6 +62,50 @@ func TestAccountSessionFlow(t *testing.T) {
 	handleLogin(store).ServeHTTP(loginResponse, loginRequest)
 	if loginResponse.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", loginResponse.Code, loginResponse.Body.String())
+	}
+}
+
+func TestCalculateStreakKeepsPreviousStreakBeforeTodaysSubmission(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		location = time.Local
+	}
+	now := time.Now().In(location)
+
+	records := []SessionRecord{
+		{CreatedAt: now.AddDate(0, 0, -1)},
+		{CreatedAt: now.AddDate(0, 0, -2)},
+		{CreatedAt: now.AddDate(0, 0, -3)},
+	}
+
+	// No session submitted yet today: the streak built up through yesterday
+	// must still be reported instead of resetting to 0.
+	if got := calculateStreak(records); got != 3 {
+		t.Fatalf("calculateStreak() = %d, want 3 (streak should persist before today's submission)", got)
+	}
+
+	// Once today's session is submitted, the streak should extend to 4.
+	records = append(records, SessionRecord{CreatedAt: now})
+	if got := calculateStreak(records); got != 4 {
+		t.Fatalf("calculateStreak() = %d, want 4 after submitting today", got)
+	}
+}
+
+func TestCalculateStreakBreaksAfterGapDay(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		location = time.Local
+	}
+	now := time.Now().In(location)
+
+	// Gap two days ago means there is no active streak, regardless of
+	// whether today has been submitted.
+	records := []SessionRecord{
+		{CreatedAt: now.AddDate(0, 0, -2)},
+		{CreatedAt: now.AddDate(0, 0, -3)},
+	}
+	if got := calculateStreak(records); got != 0 {
+		t.Fatalf("calculateStreak() = %d, want 0 when yesterday was missed", got)
 	}
 }
 
