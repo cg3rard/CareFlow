@@ -17,5 +17,5 @@ WORKDIR /app
 COPY --from=build /out/careflow-backend ./careflow-backend
 
 USER careflow
-EXPOSE 8080
+EXPOSE 8000
 ENTRYPOINT ["./careflow-backend"]
