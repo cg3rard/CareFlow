@@ -83,9 +83,13 @@ export default function Navbar() {
           </button>
           {isStaff ? (
             <>
-              <span className="hidden rounded-full bg-tertiary-container px-4 py-1.5 text-xs font-bold text-on-tertiary-container sm:inline">
+              <button
+                type="button"
+                onClick={() => navigateTo(role === "admin" ? "admin" : "psychologist")}
+                className="hidden rounded-full bg-tertiary-container px-4 py-1.5 text-xs font-bold text-on-tertiary-container transition-colors hover:bg-tertiary-container/80 sm:inline"
+              >
                 {workspaceLabel}
-              </span>
+              </button>
               {role === "admin" && (
                 <button
                   type="button"
