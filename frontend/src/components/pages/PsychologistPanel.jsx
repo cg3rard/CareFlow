@@ -101,11 +101,13 @@ export default function PsychologistPanel() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [moodMonth, setMoodMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   useEffect(() => { loadPsychologistClients().finally(() => setLoading(false)); }, []);
   useEffect(() => {
     if (!selectedClient) return;
     setSelectedChatDate('');
+    setMoodMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
     void loadClientData(selectedClient.id);
     void loadCommunityActivity(selectedClient.id);
     void loadChat(selectedClient.id);
@@ -121,14 +123,22 @@ export default function PsychologistPanel() {
   const stressValues = metrics.filter((item) => item.stressScore != null).map((item) => item.stressScore);
   const sleep = sleepValues.length ? Math.round((sleepValues.reduce((sum, value) => sum + value, 0) / sleepValues.length) * 10) / 10 : '—';
   const stress = stressValues.length ? Math.round(stressValues.reduce((sum, value) => sum + value, 0) / stressValues.length) : '—';
+  const moodYear = moodMonth.getFullYear();
+  const moodMonthIndex = moodMonth.getMonth();
+  const moodMonthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(moodMonth);
+  const moodFirstWeekday = new Date(moodYear, moodMonthIndex, 1).getDay();
+  const moodDaysInMonth = new Date(moodYear, moodMonthIndex + 1, 0).getDate();
   const calendar = useMemo(() => {
     const result = new Map();
+    // Sessions arrive newest-first, so the first mood seen for a day is the latest one.
     sessions.forEach((session) => {
       const date = new Date(session.createdAt);
-      if (date.getFullYear() === 2026 && date.getMonth() === 8) result.set(date.getDate(), session.mood);
+      if (date.getFullYear() === moodYear && date.getMonth() === moodMonthIndex && !result.has(date.getDate())) {
+        result.set(date.getDate(), session.mood);
+      }
     });
     return result;
-  }, [sessions]);
+  }, [sessions, moodYear, moodMonthIndex]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -190,7 +200,7 @@ export default function PsychologistPanel() {
               <div className="grid gap-4 md:grid-cols-4"><Stat label="Sessions" value={sessions.length} /><Stat label="Notes" value={entries.length} /><Stat label="Average sleep" value={sleep === '—' ? '—' : `${sleep} hrs`} /><Stat label="Average stress" value={stress} /></div>
               <div className="grid gap-6 lg:grid-cols-2">
                 <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">30-day trend</h3><div className="mt-5 flex h-40 items-end gap-2">{metrics.slice(0, 12).reverse().map((item) => <div key={item.id} className="flex flex-1 flex-col items-center gap-1"><div className="w-full rounded-t-lg bg-tertiary" style={{ height: `${Math.max(8, (item.stressScore || 0) * 1.2)}px` }} /><span className="text-[9px] text-on-surface-variant">{item.metricDate?.slice(-2)}</span></div>)}{metrics.length === 0 && <p className="text-sm text-on-surface-variant">No daily metrics yet.</p>}</div><p className="mt-3 text-xs text-on-surface-variant">Bar height = stress score per day.</p></article>
-                <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Mood Calendar</h3><div className="mt-4 grid grid-cols-7 gap-2">{Array.from({ length: 30 }, (_, index) => index + 1).map((day) => { const mood = calendar.get(day); return <div key={day} className={`aspect-square rounded-xl p-1 text-center text-[10px] font-bold ${mood ? moodColor[mood] || 'bg-surface-container' : 'bg-surface-container-low text-on-surface-variant'}`}>{mood && <span className="material-symbols-outlined block text-sm">{mood === 'Happy' ? 'sentiment_very_satisfied' : mood === 'Angry' ? 'sentiment_very_dissatisfied' : mood === 'Sleepy' ? 'bedtime' : 'sentiment_neutral'}</span>}{day}</div>; })}</div></article>
+                <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><div className="flex items-center justify-between gap-2"><h3 className="text-xl font-bold text-on-surface">Mood Calendar</h3><div className="flex items-center gap-2"><button type="button" aria-label="Previous month" onClick={() => setMoodMonth(new Date(moodYear, moodMonthIndex - 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high"><span className="material-symbols-outlined text-base" aria-hidden="true">chevron_left</span></button><span className="min-w-[7.5rem] text-center text-xs font-bold text-on-surface">{moodMonthLabel}</span><button type="button" aria-label="Next month" onClick={() => setMoodMonth(new Date(moodYear, moodMonthIndex + 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high"><span className="material-symbols-outlined text-base" aria-hidden="true">chevron_right</span></button></div></div><div className="mt-4 grid grid-cols-7 gap-2">{weekDays.map((name) => <span key={name} className="text-center text-[9px] font-bold text-on-surface-variant">{name}</span>)}{Array.from({ length: moodFirstWeekday }).map((_, index) => <span key={`mood-blank-${index}`} />)}{Array.from({ length: moodDaysInMonth }, (_, index) => index + 1).map((day) => { const mood = calendar.get(day); return <div key={day} className={`aspect-square rounded-xl p-1 text-center text-[10px] font-bold ${mood ? moodColor[mood] || 'bg-surface-container' : 'bg-surface-container-low text-on-surface-variant'}`}>{mood && <span className="material-symbols-outlined block text-sm">{mood === 'Happy' ? 'sentiment_very_satisfied' : mood === 'Angry' ? 'sentiment_very_dissatisfied' : mood === 'Sleepy' ? 'bedtime' : 'sentiment_neutral'}</span>}{day}</div>; })}</div></article>
               </div>
               <article className="rounded-[2rem] bg-surface-container-lowest p-6 shadow-[0_4px_0_#121214]"><h3 className="text-xl font-bold text-on-surface">Shared notes</h3><div className="mt-4 grid gap-3 md:grid-cols-2">{entries.length ? entries.slice(0, 6).map((entry) => <div key={entry.id} className="rounded-2xl bg-surface-container p-4"><strong className="text-xs">{entry.tag} · Panic {entry.panicLevel}/5</strong><p className="mt-2 text-sm leading-relaxed text-on-surface-variant">{entry.content}</p></div>) : <p className="text-sm text-on-surface-variant">No notes shared yet.</p>}</div></article>
               <div className="grid gap-6 lg:grid-cols-2">
